@@ -1,4 +1,4 @@
-// Betterwalk C speedups
+// scandir C speedups
 //
 // There's a fair bit of PY_MAJOR_VERSION boilerplate to support both Python 2
 // and Python 3 -- the structure of this is taken from here:
@@ -204,7 +204,7 @@ listdir(PyObject *self, PyObject *args)
     return d;
 }
 
-static PyMethodDef betterwalk_methods[] = {
+static PyMethodDef scandir_methods[] = {
     {"listdir", (PyCFunction)listdir, METH_VARARGS, NULL},
     {NULL, NULL, NULL, NULL},
 };
@@ -212,10 +212,10 @@ static PyMethodDef betterwalk_methods[] = {
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
-        "_betterwalk",
+        "_scandir",
         NULL,
         0,
-        betterwalk_methods,
+        scandir_methods,
         NULL,
         NULL,
         NULL,
@@ -225,20 +225,20 @@ static struct PyModuleDef moduledef = {
 
 #if PY_MAJOR_VERSION >= 3
 PyObject *
-PyInit__betterwalk(void)
+PyInit__scandir(void)
 {
     PyObject *module = PyModule_Create(&moduledef);
 #else
 void
-init_betterwalk(void)
+init_scandir(void)
 {
-    PyObject *module = Py_InitModule("_betterwalk", betterwalk_methods);
+    PyObject *module = Py_InitModule("_scandir", scandir_methods);
 #endif
     if (module == NULL) {
         INITERROR;
     }
 
-    stat_result_desc.name = "betterwalk.stat_result";
+    stat_result_desc.name = "scandir.stat_result";
     PyStructSequence_InitType(&StatResultType, &stat_result_desc);
 
 #if PY_MAJOR_VERSION >= 3

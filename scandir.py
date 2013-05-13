@@ -211,6 +211,15 @@ if sys.platform == 'win32':
             if not FindClose(handle):
                 raise win_error(ctypes.GetLastError(), path)
 
+    try:
+        import _scandir
+        def scandir(path='.'):
+            for name, st in _scandir.listdir(unicode(path)):
+                yield DirEntry(path, name, None, st)
+        print 'USING FAST C version'
+    except ImportError:
+        print 'USING SLOW Python version'
+
 
 # Linux, OS X, and BSD implementation
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:

@@ -1,13 +1,11 @@
-scandir, a better directory iterator that exposes all file info OS provides
-===========================================================================
+scandir, a better directory iterator that returns all file info the OS provides
+===============================================================================
 
-scandir is a module that provides a generator version of `os.listdir()` that
-also exposes the extra file information the operating system provides. scandir
-also provides a much faster version of `os.walk()`, because it can use the
-extra file information exposed by the scandir() function.
-
-This GitHub repo is where I'm developing it, but it's also available as a
-[library on PyPI](TODO).
+scandir is a module which provides a generator version of `os.listdir()` that
+also exposes the extra file information the operating system returns when you
+iterate a directory. scandir also provides a much faster version of
+`os.walk()`, because it can use the extra file information exposed by the
+scandir() function.
 
 
 Background
@@ -65,9 +63,7 @@ System version              Python version    Speed ratio    With -s
 Windows 7 64 bit            2.7 64 bit        8.2            13.8
 Windows XP 32 bit           2.7 32 bit
 
-Debian 2.6.32 32 bit        2.6 32 bit
-Ubuntu 12.04 64 bit VBox    2.7 64 bit
-Ubuntu 12.04 64 bit VBox    3.2 64 bit
+Ubuntu 10.04 32 bit         2.7 32 bit        3.2            1.8
 
 Mac OS X 10.7.5             2.7 64 bit
 ```
@@ -102,12 +98,9 @@ It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
 `.` and `..` are skipped, and the entries are yielded in system-dependent
 order. Each DirEntry object has the following attributes and methods:
 
- has a `name` attributes with the filename (as
-returned by listdir). The other attributes of DirEntry are as follows:
-
-* `name`: filename string (like that returned by os.listdir)
-* `dirent`: a dirent object with `d_ino` and `d_type` attributes, or None on
-  systems that don't support it (Windows)
+* `name`: filename, relative to path (like that returned by os.listdir)
+* `dirent`: a dirent object or None on systems that don't support it (Windows);
+  the dirent object has `d_ino` and `d_type` attributes
 * `isdir()`: like os.path.isdir(), but free on most systems (Linux, Windows, OS X)
 * `isfile()`: like os.path.isfile(), but free on most systems (Linux, Windows, OS X)
 * `islink()`: like os.path.islink(), but free on most systems (Linux, Windows, OS X)

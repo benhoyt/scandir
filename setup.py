@@ -11,7 +11,7 @@ setup(
     author_email='benhoyt@gmail.com',
     url='https://github.com/benhoyt/scandir',
     license='New BSD License',
-    description='scandir, a better directory iterator that exposes all file info OS provides',
+    description='scandir, a better directory iterator that returns all file info the OS provides',
     long_description="scandir is a generator version of os.listdir() that returns an iterator over "
                      "files in a directory, and also exposes the extra information most OSes provide "
                      "while iterating files in a directory. Read more at the GitHub project page.",

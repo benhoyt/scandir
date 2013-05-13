@@ -315,15 +315,13 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     """Just like os.walk(), but faster, as it uses scandir() internally."""
     # Determine which are files and which are directories
     dirs = []
-    add_dir = dirs.append
     nondirs = []
-    add_nondir = nondirs.append
     try:
         for entry in scandir(top):
             if entry.isdir():
-                add_dir(entry)
+                dirs.append(entry)
             else:
-                add_nondir(entry)
+                nondirs.append(entry)
     except OSError as error:
         if onerror is not None:
             onerror(error)

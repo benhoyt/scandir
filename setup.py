@@ -1,6 +1,6 @@
 """Run "python setup.py install" to install scandir."""
 
-from distutils.core import setup
+from distutils.core import setup, Extension
 
 import scandir
 
@@ -16,6 +16,7 @@ setup(
                      "files in a directory, and also exposes the extra information most OSes provide "
                      "while iterating files in a directory. Read more at the GitHub project page.",
     py_modules=['scandir'],
+    ext_modules=[Extension('_scandir', ['_scandir.c'])],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

@@ -1,8 +1,10 @@
-BetterWalk, a better and faster os.walk() for Python
-====================================================
+scandir, a better directory iterator that exposes all file info OS provides
+===========================================================================
 
-BetterWalk is a somewhat better and significantly faster version of Python's
-`os.walk()`, as well as a generator version of `os.listdir()`.
+scandir is a module that provides a generator version of `os.listdir()` that
+also exposes the extra file information the operating system provides. scandir
+also provides a much faster version of `os.walk()`, because it can use the
+extra file information exposed by the scandir() function.
 
 This GitHub repo is where I'm developing it, but it's also available as a
 [library on PyPI](TODO).
@@ -20,68 +22,59 @@ no further `stat` system calls are needed. In short, you can reduce the number
 of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
-**In practice, removing all those extra system calls makes walking about 2-3
-times as fast on Windows, and about 1.5 times as fast on Linux and Mac OS X.**
-So we're not talking about micro-optimizations. [See more benchmarks
+**In practice, removing all those extra system calls makes `os.walk()` about
+8-9 times as fast on Windows, and about 3-4 times as fast on Linux and Mac OS
+X.** So we're not talking about micro-optimizations. [See more benchmarks
 below.](#benchmarks)
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
-as one big list.
+as one big list. This improves memory efficiency for iterating very large
+directories.
 
-So as well as a faster `walk()`, BetterWalk adds `iterdir_stat()` and
-`iterdir()`. They're pretty easy to use, but [see below](#the-api) for the
-full API docs.
+So as well as a faster `walk()`, scandir adds a new `scandir()` function.
+They're pretty easy to use, but [see below](#the-api) for the full API docs.
 
 
 Why you should care
 -------------------
 
 I'd love for these incremental (but significant!) improvements to be added to
-the Python standard library. BetterWalk was released to help test the concept
-and get it in shape for inclusion in the standard `os` module.
+the Python standard library. This scandir module was released to help test the
+concept and get it in shape for inclusion in the standard `os` module.
 
 There are various third-party "path" and "walk directory" libraries available,
 but Python's `os` module isn't going away anytime soon. So we might as well
 speed it up and add small improvements where possible.
 
-**So I'd love it if you could help test BetterWalk, report bugs, suggest
-improvement, or comment on the API.** And perhaps you'll see these speed-ups
+**So I'd love it if you could help test scandir, report bugs, suggest
+improvements, or comment on the API.** And perhaps you'll see these speed-ups
 and API additions in Python 3.4 ... :-)
 
 
 Benchmarks
 ----------
 
-Below are results showing how many times as fast `betterwalk.walk()` is than
+Below are results showing how many times as fast `scandir.walk()` is than
 `os.walk()` on various systems, found by running `benchmark.py` with no
 arguments as well as with the `-s` argument (which totals the directory size).
 
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.6 64 bit        2.5            4.5
-Windows 7 64 bit            2.7 64 bit        2.2            4.2
-Windows 7 64 bit            3.2 64 bit        3.0            6.2
-Windows XP 32 bit           2.7 32 bit        1.3            2.4
-Windows XP 32 bit           3.3 32 bit        2.0            4.8
+Windows 7 64 bit            2.7 64 bit        8.2            13.8
+Windows XP 32 bit           2.7 32 bit
 
-Debian 2.6.32 32 bit        2.6 32 bit        1.6            1.5
-Ubuntu 12.04 64 bit VBox    2.7 64 bit        1.5            1.3
-Ubuntu 12.04 64 bit VBox    3.2 64 bit        1.7            1.4
+Debian 2.6.32 32 bit        2.6 32 bit
+Ubuntu 12.04 64 bit VBox    2.7 64 bit
+Ubuntu 12.04 64 bit VBox    3.2 64 bit
 
-Mac OS X 10.7.5             2.7 64 bit        1.6            1.3
+Mac OS X 10.7.5             2.7 64 bit
 ```
 
-Originally I was benchmarking against the actual `os.walk()`, but that uses
-`listdir()` which is written in C, whereas `iterdir_stat()` is written in pure
-Python using ctypes. So (on Linux) the cost of ctypes was outweighing the
-speed increase due to not doing the stat. So I've changed the benchmark to use
-a ctypes version of `listdir()` so it's comparing apples with apples.
-
-Some of these are systems I have running on VirtualBox -- if you can benchmark
-it on your own similar system on real hardware, send in the results and I'll
-replace these with your results.
+These benchmarks are using the fast C version of scandir_helper, which is
+equivalent to os.listdir(), also written in C, except that it provides the
+file information along with the name.
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
@@ -93,77 +86,70 @@ The API
 
 ### walk()
 
-The API for `betterwalk.walk()` is exactly the same as `os.walk()`, so just
-[read the Python docs](http://docs.python.org/2/library/os.html#os.walk).
+The API for `scandir.walk()` is exactly the same as `os.walk()`, so just [read
+the Python docs](http://docs.python.org/2/library/os.html#os.walk).
 
-### iterdir_stat()
+### scandir()
 
-The `iterdir_stat()` function is BetterWalk's main workhorse. It's defined as
-follows:
+The `scandir()` function is the scandir module's main workhorse. It's defined
+as follows:
 
 ```python
-iterdir_stat(path='.', pattern='*', fields=None)
+scandir(path='.') -> iterator of DirEntry objects
 ```
 
-It yield tuples of (filename, stat_result) for each filename that matches
-`pattern` in the directory given by `path`. Like os.listdir(), `.` and `..`
-are skipped, and the values are yielded in system-dependent order.
+It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
+`.` and `..` are skipped, and the entries are yielded in system-dependent
+order. Each DirEntry object has the following attributes and methods:
 
-Pattern matching is done as per fnmatch.fnmatch(), but is more efficient if
-the system's directory iteration supports pattern matching (like Windows).
+ has a `name` attributes with the filename (as
+returned by listdir). The other attributes of DirEntry are as follows:
 
-The `fields` parameter specifies which fields to provide in each stat_result.
-If None, only the fields the operating system can get "for free" are present
-in stat_result. Otherwise "fields" must be an iterable of `st_*` attribute
-names that the caller wants in each stat_result. The only special attribute
-name is `st_mode_type`, which means the type bits in the st_mode field.
+* `name`: filename string (like that returned by os.listdir)
+* `dirent`: a dirent object with `d_ino` and `d_type` attributes, or None on
+  systems that don't support it (Windows)
+* `isdir()`: like os.path.isdir(), but free on most systems (Linux, Windows, OS X)
+* `isfile()`: like os.path.isfile(), but free on most systems (Linux, Windows, OS X)
+* `islink()`: like os.path.islink(), but free on most systems (Linux, Windows, OS X)
+* `lstat()`: like os.lstat(), but free on Windows
 
-In practice, all fields are provided for free on Windows; whereas only the
-st_mode_type information is provided for free on Linux, Mac OS X, and BSD.
-
-Here's a good usage pattern for `iterdir_stat`. This is in fact almost exactly
-how the faster `os.walk()` implementation uses it:
+Here's a good usage pattern for `scandir`. This is in fact almost exactly how
+the faster `os.walk()` implementation uses it:
 
 ```python
 dirs = []
 nondirs = []
-for name, st in betterwalk.iterdir_stat(top, fields=['st_mode_type']):
-    if stat.S_ISDIR(st.st_mode):
-        dirs.append(name)
+for entry in scandir(path):
+    if entry.isdir():
+        dirs.append(entry)
     else:
-        nondirs.append(name)
+        nondirs.append(entry)
 ```
-
-### iterdir()
-
-The `iterdir()` function is similar to iterdir_stat(), except it doesn't
-provide any stat information, but simply yields a list of filenames.
 
 
 Further reading
 ---------------
 
 * [Thread I started on the python-ideas list about speeding up os.walk()](http://mail.python.org/pipermail/python-ideas/2012-November/017770.html)
+* [Python Issue 11406, original proposal for scandir(), a generator without the dirent/stat info](http://bugs.python.org/issue11406)
+* [Further thread I started on python-dev that refined the scandir() API](http://mail.python.org/pipermail/python-dev/2013-May/126119.html)
 * [Question on StackOverflow about why os.walk() is slow and pointers to fix it](http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder)
 * [Question on StackOverflow asking about iterating over a directory](http://stackoverflow.com/questions/4403598/list-files-in-a-folder-as-a-stream-to-begin-process-immediately)
-
+* [BetterWalk, my previous attempt at this, on which this code is based](https://github.com/benhoyt/betterwalk)
 
 To-do
 -----
 
-* Windows FindFirst/Next wildcard matching is quirky (compared to fnmatch). From Random832 on python-ideas: it matches short filenames, the behavior you noted of "?" at the end of patterns also applies to the end of the 'filename portion' (e.g. foo?.txt can match foo.txt), and the behavior of patterns ending in ".*" or "." isn't like fnmatch. [This](http://digital.ni.com/public.nsf/allkb/0DBE16907A17717B86256F7800169797) and [this](http://blogs.msdn.com/b/oldnewthing/archive/2007/12/17/6785519.aspx) might be helpful.
-* From John Mulligan on python-ideas: there is a potential race condition between calling the readdir and the stat, like if the object is removed between calls. Consider what to do here, maybe return None for all st_* fields on stat() error? See also "This race isn't the only reason that stat can fail" message from Andrew Barnert.
-* Test performance of pattern param on Windows versus fnmatch filtering afterwards.
 * Add tests, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
-* Consider adding "pattern" parameter to `walk()`, per Todd Whiteman
+
 
 Flames, comments, bug reports
 -----------------------------
 
-Please send flames, comments, and questions about BetterWalk to Ben Hoyt:
+Please send flames, comments, and questions about scandir to Ben Hoyt:
 
 http://benhoyt.com/
 
 File bug reports or feature requests at the GitHub project page:
 
-https://github.com/benhoyt/betterwalk
+https://github.com/benhoyt/scandir

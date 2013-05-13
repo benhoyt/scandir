@@ -1,4 +1,4 @@
 *.pyc
+*.pyd
 benchtree
 build
-_betterwalk.pyd

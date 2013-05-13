@@ -1,4 +1,4 @@
-"""Simple benchmark to compare the speed of BetterWalk with os.walk()."""
+"""Simple benchmark to compare the speed of scandir.walk() with os.walk()."""
 
 import optparse
 import os
@@ -6,7 +6,7 @@ import stat
 import sys
 import timeit
 
-import betterwalk
+import scandir
 
 DEPTH = 4
 NUM_DIRS = 5
@@ -21,49 +21,49 @@ if sys.platform == 'win32':
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
         filename = os.path.join(path, '*')
-        handle = betterwalk.FindFirstFile(filename, data_p)
-        if handle == betterwalk.INVALID_HANDLE_VALUE:
+        handle = scandir.FindFirstFile(filename, data_p)
+        if handle == scandir.INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
-            if error == betterwalk.ERROR_FILE_NOT_FOUND:
+            if error == scandir.ERROR_FILE_NOT_FOUND:
                 return []
-            raise betterwalk.win_error(error, path)
+            raise scandir.win_error(error, path)
         names = []
         try:
             while True:
                 name = data.cFileName
                 if name not in ('.', '..'):
                     names.append(name)
-                success = betterwalk.FindNextFile(handle, data_p)
+                success = scandir.FindNextFile(handle, data_p)
                 if not success:
                     error = ctypes.GetLastError()
-                    if error == betterwalk.ERROR_NO_MORE_FILES:
+                    if error == scandir.ERROR_NO_MORE_FILES:
                         break
-                    raise betterwalk.win_error(error, path)
+                    raise scandir.win_error(error, path)
         finally:
-            if not betterwalk.FindClose(handle):
-                raise betterwalk.win_error(ctypes.GetLastError(), path)
+            if not scandir.FindClose(handle):
+                raise scandir.win_error(ctypes.GetLastError(), path)
         return names
 
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     def os_listdir(path):
-        dir_p = betterwalk.opendir(path.encode(betterwalk.file_system_encoding))
+        dir_p = scandir.opendir(path.encode(scandir.file_system_encoding))
         if not dir_p:
-            raise betterwalk.posix_error(path)
+            raise scandir.posix_error(path)
         names = []
         try:
-            entry = betterwalk.dirent()
-            result = betterwalk.dirent_p()
+            entry = scandir.dirent()
+            result = scandir.dirent_p()
             while True:
-                if betterwalk.readdir_r(dir_p, entry, result):
-                    raise betterwalk.posix_error(path)
+                if scandir.readdir_r(dir_p, entry, result):
+                    raise scandir.posix_error(path)
                 if not result:
                     break
-                name = entry.d_name.decode(betterwalk.file_system_encoding)
+                name = entry.d_name.decode(scandir.file_system_encoding)
                 if name not in ('.', '..'):
                     names.append(name)
         finally:
-            if betterwalk.closedir(dir_p):
-                raise betterwalk.posix_error(path)
+            if scandir.closedir(dir_p):
+                raise scandir.posix_error(path)
         return names
 
 else:
@@ -71,7 +71,7 @@ else:
 
 def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """Identical to os.walk(), but use ctypes-based listdir() so benchmark
-    against ctypes-based iterdir_stat() is valid.
+    against ctypes-based scandir() is valid.
     """
     try:
         names = os_listdir(top)
@@ -121,11 +121,11 @@ def get_tree_size(path):
     """Return total size of all files in directory tree at path."""
     size = 0
     try:
-        for name, st in betterwalk.iterdir_stat(path, fields=['st_mode_type', 'st_size']):
-            if stat.S_ISDIR(st.st_mode):
-                size += get_tree_size(os.path.join(path, name))
+        for entry in scandir.scandir(path):
+            if entry.isdir():
+                size += get_tree_size(os.path.join(path, entry.name))
             else:
-                size += st.st_size
+                size += entry.lstat().st_size
     except OSError:
         pass
     return size
@@ -142,49 +142,49 @@ def benchmark(path, get_size=False):
                     size += os.path.getsize(fullname)
             sizes['os_walk'] = size
 
-        def do_betterwalk():
-            sizes['betterwalk'] = get_tree_size(path)
+        def do_scandir_walk():
+            sizes['scandir_walk'] = get_tree_size(path)
 
     else:
         def do_os_walk():
             for root, dirs, files in os_walk(path):
                 pass
 
-        def do_betterwalk():
-            for root, dirs, files in betterwalk.walk(path):
+        def do_scandir_walk():
+            for root, dirs, files in scandir.walk(path):
                 pass
 
     # Run this once first to cache things, so we're not benchmarking I/O
     print("Priming the system's cache...")
-    do_betterwalk()
+    do_scandir_walk()
 
     # Use the best of 3 time for each of them to eliminate high outliers
     os_walk_time = 1000000
-    betterwalk_time = 1000000
+    scandir_walk_time = 1000000
     N = 3
     for i in range(N):
         print('Benchmarking walks on {0}, repeat {1}/{2}...'.format(
             path, i + 1, N))
         os_walk_time = min(os_walk_time, timeit.timeit(do_os_walk, number=1))
-        betterwalk_time = min(betterwalk_time, timeit.timeit(do_betterwalk, number=1))
+        scandir_walk_time = min(scandir_walk_time, timeit.timeit(do_scandir_walk, number=1))
 
     if get_size:
-        if sizes['os_walk'] == sizes['betterwalk']:
+        if sizes['os_walk'] == sizes['scandir_walk']:
             equality = 'equal'
         else:
             equality = 'NOT EQUAL!'
-        print('os.walk size {0}, BetterWalk size {1} -- {2}'.format(
-            sizes['os_walk'], sizes['betterwalk'], equality))
+        print('os.walk size {0}, scandir.walk size {1} -- {2}'.format(
+            sizes['os_walk'], sizes['scandir_walk'], equality))
 
-    print('os.walk took {0:.3f}s, BetterWalk took {1:.3f}s -- {2:.1f}x as fast'.format(
-          os_walk_time, betterwalk_time, os_walk_time / betterwalk_time))
+    print('os.walk took {0:.3f}s, scandir.walk took {1:.3f}s -- {2:.1f}x as fast'.format(
+          os_walk_time, scandir_walk_time, os_walk_time / scandir_walk_time))
 
 def main():
     """Usage: benchmark.py [-h] [tree_dir]
 
 Create 230MB directory tree named "benchtree" (relative to this script) and
-benchmark os.walk() versus betterwalk.walk(). If tree_dir is specified,
-benchmark using it instead of creating a tree.
+benchmark os.walk() versus scandir.walk(). If tree_dir is specified, benchmark
+using it instead of creating a tree.
 """
     parser = optparse.OptionParser(usage=main.__doc__.rstrip())
     parser.add_option('-s', '--size', action='store_true',

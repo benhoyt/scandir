@@ -6,14 +6,19 @@
 
 #include <Python.h>
 #include <structseq.h>
-#include <windows.h>
 #include <osdefs.h>
+
+#ifdef MS_WINDOWS
+#include <windows.h>
+#endif
 
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
 #else
 #define INITERROR return
 #endif
+
+#ifdef MS_WINDOWS
 
 static PyObject *
 win32_error_unicode(char* function, Py_UNICODE* filename)
@@ -108,7 +113,7 @@ static PyStructSequence_Desc stat_result_desc = {
 };
 
 static PyObject *
-listdir(PyObject *self, PyObject *args)
+scandir_helper(PyObject *self, PyObject *args)
 {
     PyObject *d, *v;
     HANDLE hFindFile;
@@ -119,7 +124,7 @@ listdir(PyObject *self, PyObject *args)
     PyObject *po;
     PyObject *name_stat;
 
-    if (!PyArg_ParseTuple(args, "U:listdir", &po))
+    if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
         return NULL;
 
     /* Overallocate for \\*.*\0 */
@@ -204,8 +209,118 @@ listdir(PyObject *self, PyObject *args)
     return d;
 }
 
+#else  // Linux / OS X
+
+#include <dirent.h>
+#define NAMLEN(dirent) strlen((dirent)->d_name)
+
+static PyObject *
+posix_error_with_allocated_filename(char* name)
+{
+    PyObject *rc = PyErr_SetFromErrnoWithFilename(PyExc_OSError, name);
+    PyMem_Free(name);
+    return rc;
+}
+
+static PyObject *
+scandir_helper(PyObject *self, PyObject *args)
+{
+    char *name = NULL;
+    PyObject *d, *v, *name_ino_type;
+    DIR *dirp;
+    struct dirent *ep;
+    int arg_is_unicode = 1;
+
+    errno = 0;
+    if (!PyArg_ParseTuple(args, "U:scandir_helper", &v)) {
+        arg_is_unicode = 0;
+        PyErr_Clear();
+    }
+    if (!PyArg_ParseTuple(args, "et:scandir_helper", Py_FileSystemDefaultEncoding, &name))
+        return NULL;
+    Py_BEGIN_ALLOW_THREADS
+    dirp = opendir(name);
+    Py_END_ALLOW_THREADS
+    if (dirp == NULL) {
+        return posix_error_with_allocated_filename(name);
+    }
+    if ((d = PyList_New(0)) == NULL) {
+        Py_BEGIN_ALLOW_THREADS
+        closedir(dirp);
+        Py_END_ALLOW_THREADS
+        PyMem_Free(name);
+        return NULL;
+    }
+    for (;;) {
+        errno = 0;
+        Py_BEGIN_ALLOW_THREADS
+        ep = readdir(dirp);
+        Py_END_ALLOW_THREADS
+        if (ep == NULL) {
+            if (errno == 0) {
+                break;
+            } else {
+                Py_BEGIN_ALLOW_THREADS
+                closedir(dirp);
+                Py_END_ALLOW_THREADS
+                Py_DECREF(d);
+                return posix_error_with_allocated_filename(name);
+            }
+        }
+        if (ep->d_name[0] == '.' &&
+            (NAMLEN(ep) == 1 ||
+             (ep->d_name[1] == '.' && NAMLEN(ep) == 2)))
+            continue;
+        v = PyString_FromStringAndSize(ep->d_name, NAMLEN(ep));
+        if (v == NULL) {
+            Py_DECREF(d);
+            d = NULL;
+            break;
+        }
+        if (arg_is_unicode) {
+            PyObject *w;
+
+            w = PyUnicode_FromEncodedObject(v,
+                                            Py_FileSystemDefaultEncoding,
+                                            "strict");
+            if (w != NULL) {
+                Py_DECREF(v);
+                v = w;
+            }
+            else {
+                /* fall back to the original byte string, as
+                   discussed in patch #683592 */
+                PyErr_Clear();
+            }
+        }
+        name_ino_type = PyTuple_Pack(3, v, PyInt_FromLong(ep->d_ino), PyInt_FromLong(ep->d_type));
+        if (name_ino_type == NULL) {
+            Py_DECREF(v);
+            Py_DECREF(d);
+            d = NULL;
+            break;
+        }
+        if (PyList_Append(d, name_ino_type) != 0) {
+            Py_DECREF(v);
+            Py_DECREF(d);
+            Py_DECREF(name_ino_type);
+            d = NULL;
+            break;
+        }
+        Py_DECREF(v);
+    }
+    Py_BEGIN_ALLOW_THREADS
+    closedir(dirp);
+    Py_END_ALLOW_THREADS
+    PyMem_Free(name);
+
+    return d;
+}
+
+#endif
+
 static PyMethodDef scandir_methods[] = {
-    {"listdir", (PyCFunction)listdir, METH_VARARGS, NULL},
+    {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},
     {NULL, NULL, NULL, NULL},
 };
 
@@ -238,8 +353,10 @@ init_scandir(void)
         INITERROR;
     }
 
+#ifdef MS_WINDOWS
     stat_result_desc.name = "scandir.stat_result";
     PyStructSequence_InitType(&StatResultType, &stat_result_desc);
+#endif
 
 #if PY_MAJOR_VERSION >= 3
     return module;

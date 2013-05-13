@@ -214,7 +214,7 @@ if sys.platform == 'win32':
     try:
         import _scandir
         def scandir(path='.'):
-            for name, st in _scandir.listdir(unicode(path)):
+            for name, st in _scandir.scandir_helper(unicode(path)):
                 yield DirEntry(path, name, None, st)
         print 'USING FAST C version'
     except ImportError:
@@ -273,7 +273,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         exc.filename = filename
         return exc
 
-    def iterdir_stat(path='.'):
+    def scandir(path='.'):
         dir_p = opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise posix_error(path)
@@ -287,11 +287,21 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                     break
                 name = entry.d_name.decode(file_system_encoding)
                 if name not in ('.', '..'):
-                    small_dirent = Dirent(entry.d_ino, entry.d_type)
-                    yield DirEntry(path, name, small_dirent, None)
+                    scandir_dirent = Dirent(entry.d_ino, entry.d_type)
+                    yield DirEntry(path, name, scandir_dirent, None)
         finally:
             if closedir(dir_p):
                 raise posix_error(path)
+
+    try:
+        import _scandir
+        def scandir(path='.'):
+            for name, d_ino, d_type in _scandir.scandir_helper(path):
+                scandir_dirent = Dirent(d_ino, d_type)
+                yield DirEntry(path, name, scandir_dirent, None)
+        print 'USING FAST C version'
+    except ImportError:
+        print 'USING SLOW Python version'
 
 
 # Some other system -- no d_type or stat information

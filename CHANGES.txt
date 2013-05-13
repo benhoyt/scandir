@@ -1,0 +1,13 @@
+
+2012-11-19 version 0.6
+
+* Added fields keyword arg to iterdir_stat() API, per post on python-ideas
+  mailing list.
+* Added pattern keyword arg for fnmatch-style matching (to make use of
+  FindFirst/Next wildcard matching).
+* Other fixes and improvements.
+
+
+2012-11-13 version 0.5
+
+* Initial upload to GitHub

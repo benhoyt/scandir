@@ -22,6 +22,10 @@ import sys
 __version__ = '0.1'
 __all__ = ['scandir', 'walk']
 
+try:
+    unicode
+except NameError:
+    unicode = str
 
 _join = os.path.join
 _lstat = os.lstat

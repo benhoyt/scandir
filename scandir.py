@@ -219,9 +219,9 @@ if sys.platform == 'win32':
         def scandir(path='.'):
             for name, st in _scandir.scandir_helper(unicode(path)):
                 yield DirEntry(path, name, None, st)
-        print 'USING FAST C version'
+        print ('USING FAST C version')
     except ImportError:
-        print 'USING SLOW Python version'
+        print ('USING SLOW Python version')
 
 
 # Linux, OS X, and BSD implementation
@@ -302,9 +302,9 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             for name, d_ino, d_type in _scandir.scandir_helper(path):
                 scandir_dirent = Dirent(d_ino, d_type)
                 yield DirEntry(path, name, scandir_dirent, None)
-        print 'USING FAST C version'
+        print ('USING FAST C version')
     except ImportError:
-        print 'USING SLOW Python version'
+        print ('USING SLOW Python version')
 
 
 # Some other system -- no d_type or stat information

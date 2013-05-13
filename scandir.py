@@ -57,6 +57,9 @@ class DirEntry(object):
             self._lstat = _lstat(_join(self._path, self.name))
         return self._lstat
 
+    # Ridiculous duplication between these is* functions -- helps a little bit
+    # with os.walk() performance compared to calling another function. Won't
+    # be an issue in C, but Python function calls are relatively expensive.
     def isdir(self):
         if self._lstat is None:
             d_type = getattr(self.dirent, 'd_type', DT_UNKNOWN)

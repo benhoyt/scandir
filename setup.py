@@ -18,7 +18,7 @@ setup(
     py_modules=['scandir'],
     ext_modules=[
         Extension('_scandir', ['_scandir.c']),
-        Extension('_fileiter', ['_fileiter.c']),
+        Extension('_iterfile', ['_iterfile.c']),
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -166,20 +166,20 @@ FileIterator *iterator;
     return (PyObject *)iterator;
 }
 
-static PyMethodDef _fileiter_methods[] = {
+static PyMethodDef _iterfile_methods[] = {
     {"iterfile", iterfile, METH_VARARGS, "Get File Iterator"},
     {NULL, NULL, 0, NULL}
 };
-static struct PyModuleDef _fileiter_module = {
+static struct PyModuleDef _iterfile_module = {
     PyModuleDef_HEAD_INIT,
-    "_fileiter",
+    "_iterfile",
     "This module offers lots of useful file utils2",
     -1,
-    _fileiter_methods
+    _iterfile_methods
 };
 
 PyMODINIT_FUNC
-PyInit__fileiter(void)
+PyInit__iterfile(void)
 {
 PyObject *module;
 PyDateTime_IMPORT;
@@ -189,7 +189,7 @@ PyDateTime_IMPORT;
         return NULL;
     }
 
-    module = PyModule_Create(&_fileiter_module);
+    module = PyModule_Create(&_iterfile_module);
     if (module == NULL) {
         return NULL;
     }

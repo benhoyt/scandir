@@ -9,8 +9,12 @@ static PyTypeObject FileDataType;
 static PyObject *
 FileDataType_from_find_data(WIN32_FIND_DATAW *data)
 {
-    PY_LONG_LONG size;
-    PyObject *v = PyStructSequence_New(&FileDataType);
+PY_LONG_LONG size;
+PyObject *v = PyStructSequence_New(&FileDataType);
+
+    /*
+    Produce a structseq object whose fields map to the data in the WIN32_FIND_DATAW
+    */
     if (v == NULL)
         return NULL;
 
@@ -65,9 +69,9 @@ ffi_iternext(PyObject *iterator)
 PyObject *file_data;
 BOOL is_empty;
 
-	FileIterator *ffi = (FileIterator *)iterator;
+	FileIterator *fi = (FileIterator *)iterator;
     is_empty = FALSE;
-    memset(&iterator->data, 0, sizeof(iterator->data));
+    memset(&fi->data, 0, sizeof(fi->data));
 
     /*
     Put data into the iterator's data buffer, using the state of the
@@ -77,12 +81,12 @@ BOOL is_empty;
     If the API indicates that there are no (or no more) files, raise
     a StopIteration exception.
     */
-    if (ffi->hFind == NULL) {
+    if (fi->hFind == NULL) {
         Py_BEGIN_ALLOW_THREADS
-        ffi->hFind = FindFirstFileW(ffi->pattern, &ffi->data);
+        fi->hFind = FindFirstFileW(fi->pattern, &fi->data);
         Py_END_ALLOW_THREADS
 
-        if (ffi->hFind == INVALID_HANDLE_VALUE) {
+        if (fi->hFind == INVALID_HANDLE_VALUE) {
             if (GetLastError() == ERROR_FILE_NOT_FOUND) {
                 return PyErr_SetFromWindowsErr(GetLastError());
             }
@@ -92,7 +96,7 @@ BOOL is_empty;
 	else {
 		BOOL ok;
 		Py_BEGIN_ALLOW_THREADS
-		ok = FindNextFileW(ffi->hFind, &ffi->data);
+		ok = FindNextFileW(fi->hFind, &fi->data);
 		Py_END_ALLOW_THREADS
 
         if (!ok) {
@@ -108,7 +112,7 @@ BOOL is_empty;
         return NULL;
     }
 
-    file_data = FileDataType_from_find_data(&ffi->data);
+    file_data = FileDataType_from_find_data(&fi->data);
     if (!file_data) {
         return PyErr_SetFromWindowsErr(GetLastError());
     }

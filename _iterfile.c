@@ -30,7 +30,7 @@ FileDataType_from_find_data(WIN32_FIND_DATAW *data)
 }
 
 static PyStructSequence_Field file_data_fields[] = {
-    {"name"          "file name"},
+    {"name",         "file name"},
     {"size",         "how big is the file? (bytes)"},
     {"is_directory", "is the file a directory?"},
     {0}
@@ -193,6 +193,9 @@ PyDateTime_IMPORT;
     if (module == NULL) {
         return NULL;
     }
+
+    file_data_desc.name = "iterfile.file_data";
+    PyStructSequence_InitType(&FileDataType, &file_data_desc);
 
     return module;
 }

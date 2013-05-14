@@ -6,7 +6,6 @@
 
 #include <Python.h>
 #include <structseq.h>
-#include <osdefs.h>
 
 #ifdef MS_WINDOWS
 #include <windows.h>
@@ -14,10 +13,10 @@
 
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
-#define _from_long PyLong_FromLong
+#define FROM_LONG PyLong_FromLong
 #else
 #define INITERROR return
-#define _from_long PyInt_FromLong
+#define FROM_LONG PyInt_FromLong
 #endif
 
 #ifdef MS_WINDOWS
@@ -74,12 +73,12 @@ find_data_to_statresult(WIN32_FIND_DATAW *data)
     size = (PY_LONG_LONG)data->nFileSizeHigh << 32 |
            (PY_LONG_LONG)data->nFileSizeLow;
 
-    PyStructSequence_SET_ITEM(v, 0, _from_long(attributes_to_mode(data->dwFileAttributes)));
-    PyStructSequence_SET_ITEM(v, 1, _from_long(0));
-    PyStructSequence_SET_ITEM(v, 2, _from_long(0));
-    PyStructSequence_SET_ITEM(v, 3, _from_long(0));
-    PyStructSequence_SET_ITEM(v, 4, _from_long(0));
-    PyStructSequence_SET_ITEM(v, 5, _from_long(0));
+    PyStructSequence_SET_ITEM(v, 0, FROM_LONG(attributes_to_mode(data->dwFileAttributes)));
+    PyStructSequence_SET_ITEM(v, 1, FROM_LONG(0));
+    PyStructSequence_SET_ITEM(v, 2, FROM_LONG(0));
+    PyStructSequence_SET_ITEM(v, 3, FROM_LONG(0));
+    PyStructSequence_SET_ITEM(v, 4, FROM_LONG(0));
+    PyStructSequence_SET_ITEM(v, 5, FROM_LONG(0));
     PyStructSequence_SET_ITEM(v, 6, PyLong_FromLongLong((PY_LONG_LONG)size));
     PyStructSequence_SET_ITEM(v, 7, PyFloat_FromDouble(filetime_to_time(&data->ftLastAccessTime)));
     PyStructSequence_SET_ITEM(v, 8, PyFloat_FromDouble(filetime_to_time(&data->ftLastWriteTime)));
@@ -295,7 +294,7 @@ scandir_helper(PyObject *self, PyObject *args)
                 PyErr_Clear();
             }
         }
-        name_ino_type = PyTuple_Pack(3, v, _from_long(ep->d_ino), _from_long(ep->d_type));
+        name_ino_type = PyTuple_Pack(3, v, FROM_LONG(ep->d_ino), FROM_LONG(ep->d_type));
         if (name_ino_type == NULL) {
             Py_DECREF(v);
             Py_DECREF(d);

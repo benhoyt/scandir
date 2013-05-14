@@ -1,4 +1,4 @@
-"""Tests for scandir.walk(), copied from CPython's tests for os.walk."""
+"""Tests for scandir.walk(), copied from CPython's tests for os.walk()."""
 
 import os
 import unittest
@@ -99,7 +99,7 @@ class WalkTests(unittest.TestCase):
         # Windows, which doesn't have a recursive delete command.  The
         # (not so) subtlety is that rmdir will fail unless the dir's
         # kids are removed first, so bottom up is essential.
-        for root, dirs, files in scandir.walk(self.testfn, topdown=False):
+        for root, dirs, files in os.walk(self.testfn, topdown=False):
             for name in files:
                 os.remove(os.path.join(root, name))
             for name in dirs:

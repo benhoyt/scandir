@@ -18,6 +18,7 @@ import fnmatch
 import os
 import stat
 import sys
+import warnings
 
 __version__ = '0.1'
 __all__ = ['scandir', 'walk']
@@ -223,9 +224,8 @@ if sys.platform == 'win32':
         def scandir(path='.'):
             for name, st in _scandir.scandir_helper(unicode(path)):
                 yield DirEntry(path, name, None, st)
-        print ('USING FAST C version')
     except ImportError:
-        print ('USING SLOW Python version')
+        warnings.warn('Using slow Python version of scandir()')
 
 
 # Linux, OS X, and BSD implementation
@@ -306,9 +306,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             for name, d_ino, d_type in _scandir.scandir_helper(path):
                 scandir_dirent = Dirent(d_ino, d_type)
                 yield DirEntry(path, name, scandir_dirent, None)
-        print ('USING FAST C version')
     except ImportError:
-        print ('USING SLOW Python version')
+        warnings.warn('Using slow Python version of scandir(), please build _scandir.c using setup.py')
 
 
 # Some other system -- no d_type or stat information
@@ -336,7 +335,23 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going top down
     if topdown:
-        yield top, dirs, nondirs
+        # Need to do some fancy footwork here as caller is allowed to modify
+        # dir_names, and we really want them to modify dirs (list of DirEntry
+        # objects) instead. Keep a mapping of entries keyed by name.
+        dir_names = []
+        entries_by_name = {}
+        for entry in dirs:
+            dir_names.append(entry.name)
+            entries_by_name[entry.name] = entry
+
+        yield top, dir_names, [e.name for e in nondirs]
+
+        dirs = []
+        for dir_name in dir_names:
+            entry = entries_by_name.get(dir_name)
+            if entry is None:
+                entry = DirEntry(top, dir_name, None, None)
+            dirs.append(entry)
 
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
@@ -347,4 +362,4 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going bottom up
     if not topdown:
-        yield top, dirs, nondirs
+        yield top, [e.name for e in dirs], [e.name for e in nondirs]

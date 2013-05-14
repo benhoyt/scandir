@@ -2,3 +2,5 @@
 *.pyd
 benchtree
 build
+
+/tests/*.log

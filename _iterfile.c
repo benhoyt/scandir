@@ -17,7 +17,7 @@ FileDataType_from_find_data(WIN32_FIND_DATAW *data)
     size = (PY_LONG_LONG)data->nFileSizeHigh << 32 |
            (PY_LONG_LONG)data->nFileSizeLow;
 
-    PyStructSequence_SET_ITEM(v, 0, PyUnicode_FromWideChar (data->cFileName, -1));
+    PyStructSequence_SET_ITEM(v, 0, PyUnicode_FromWideChar(data->cFileName, -1));
     PyStructSequence_SET_ITEM(v, 1, PyLong_FromLongLong(size));
     PyStructSequence_SET_ITEM(v, 2, PyBool_FromLong(data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
 
@@ -43,12 +43,12 @@ static PyStructSequence_Desc file_data_desc = {
     3
 };
 
+#define PATTERN_LEN 1024
 typedef struct {
 	PyObject_HEAD
 	HANDLE hFind;
+    wchar_t pattern[PATTERN_LEN];
 	WIN32_FIND_DATAW data;
-	BOOL seen_first;
-	BOOL empty;
 } FileIterator;
 
 static void
@@ -63,35 +63,57 @@ static PyObject *
 ffi_iternext(PyObject *iterator)
 {
 PyObject *file_data;
+BOOL is_empty;
 
 	FileIterator *ffi = (FileIterator *)iterator;
-	if (ffi->empty) {
-		PyErr_SetNone(PyExc_StopIteration);
-		return NULL;
-	}
-	if (!ffi->seen_first) {
-		ffi->seen_first = TRUE;
+    is_empty = FALSE;
+    memset(&iterator->data, 0, sizeof(iterator->data));
+
+    /*
+    Put data into the iterator's data buffer, using the state of the
+    hFind handle to determine whether this is the first iteration or
+    a successive one.
+
+    If the API indicates that there are no (or no more) files, raise
+    a StopIteration exception.
+    */
+    if (ffi->hFind == NULL) {
+        Py_BEGIN_ALLOW_THREADS
+        ffi->hFind = FindFirstFileW(ffi->pattern, &ffi->data);
+        Py_END_ALLOW_THREADS
+
+        if (ffi->hFind == INVALID_HANDLE_VALUE) {
+            if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+                return PyErr_SetFromWindowsErr(GetLastError());
+            }
+            is_empty = TRUE;
+        }
     }
 	else {
 		BOOL ok;
 		Py_BEGIN_ALLOW_THREADS
-		memset (&ffi->data, 0, sizeof (ffi->data));
-		ok = FindNextFileW (ffi->hFind, &ffi->data);
+		ok = FindNextFileW(ffi->hFind, &ffi->data);
 		Py_END_ALLOW_THREADS
-		if (!ok) {
-			if (GetLastError()==ERROR_NO_MORE_FILES) {
-				PyErr_SetNone(PyExc_StopIteration);
-				return NULL;
+
+        if (!ok) {
+			if (GetLastError() != ERROR_NO_MORE_FILES) {
+			    return PyErr_SetFromWindowsErr(GetLastError());
 			}
-			return PyErr_SetFromWindowsErr (GetLastError());
+            is_empty = TRUE;
 		}
 	}
+
+    if (is_empty) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+
     file_data = FileDataType_from_find_data(&ffi->data);
     if (!file_data) {
-        return PyErr_SetFromWindowsErr (GetLastError());
+        return PyErr_SetFromWindowsErr(GetLastError());
     }
     else {
-        return Py_BuildValue ("O", file_data);
+        return Py_BuildValue("O", file_data);
     }
 }
 
@@ -139,30 +161,23 @@ iterfile (PyObject *self, PyObject *args)
 PyUnicodeObject *po;
 FileIterator *iterator;
 
-    if (!PyArg_ParseTuple (args, "U", &po)) {
+    if (!PyArg_ParseTuple(args, "U", &po)) {
         return NULL;
     }
 
-    iterator = PyObject_New (FileIterator, &FileIterator_Type);
+    /*
+    Create and return a FileIterator object.
+
+    Initialise it with the pattern to iterate over, an empty data block, and an empty handle,
+    the latter indicating to the iternext implementation that iteration has not yet started.
+    */
+    iterator = PyObject_New(FileIterator, &FileIterator_Type);
     if (iterator == NULL) {
         return NULL;
     }
-    iterator->seen_first = FALSE;
-    iterator->empty = FALSE;
-    iterator->hFind = INVALID_HANDLE_VALUE;
-    memset(&iterator->data, 0, sizeof(iterator->data));
+    wcscpy(iterator->pattern, PyUnicode_AS_UNICODE(po));
+    iterator->hFind = NULL;
 
-    Py_BEGIN_ALLOW_THREADS
-    iterator->hFind = FindFirstFileW (PyUnicode_AS_UNICODE (po), &iterator->data);
-    Py_END_ALLOW_THREADS
-
-    if (iterator->hFind == INVALID_HANDLE_VALUE) {
-        if (GetLastError () != ERROR_FILE_NOT_FOUND) {
-            Py_DECREF (iterator);
-            return PyErr_SetFromWindowsErr (GetLastError());
-        }
-        iterator->empty = TRUE;
-    }
     return (PyObject *)iterator;
 }
 

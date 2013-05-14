@@ -6,7 +6,6 @@
 
 #include <Python.h>
 #include <structseq.h>
-#include <osdefs.h>
 
 #ifdef MS_WINDOWS
 #include <windows.h>

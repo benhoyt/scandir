@@ -7,7 +7,7 @@
 static PyTypeObject FileDataType;
 
 static PyObject *
-find_data_to_file_data(WIN32_FIND_DATAW *data)
+FileDataType_from_find_data(WIN32_FIND_DATAW *data)
 {
     PY_LONG_LONG size;
     PyObject *v = PyStructSequence_New(&FileDataType);
@@ -18,7 +18,7 @@ find_data_to_file_data(WIN32_FIND_DATAW *data)
            (PY_LONG_LONG)data->nFileSizeLow;
 
     PyStructSequence_SET_ITEM(v, 0, PyUnicode_FromWideChar (data->cFileName, -1));
-    PyStructSequence_SET_ITEM(v, 1, size);
+    PyStructSequence_SET_ITEM(v, 1, PyLong_FromLongLong(size));
     PyStructSequence_SET_ITEM(v, 2, PyBool_FromLong(data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
 
     if (PyErr_Occurred()) {
@@ -46,7 +46,7 @@ static PyStructSequence_Desc file_data_desc = {
 typedef struct {
 	PyObject_HEAD
 	HANDLE hFind;
-	WIN32_FIND_DATAW buffer;
+	WIN32_FIND_DATAW data;
 	BOOL seen_first;
 	BOOL empty;
 } FileIterator;
@@ -62,7 +62,7 @@ ffi_dealloc(FileIterator *iterator)
 static PyObject *
 ffi_iternext(PyObject *iterator)
 {
-PyObject *filename;
+PyObject *file_data;
 
 	FileIterator *ffi = (FileIterator *)iterator;
 	if (ffi->empty) {
@@ -75,8 +75,8 @@ PyObject *filename;
 	else {
 		BOOL ok;
 		Py_BEGIN_ALLOW_THREADS
-		memset (&ffi->buffer, 0, sizeof (ffi->buffer));
-		ok = FindNextFileW (ffi->hFind, &ffi->buffer);
+		memset (&ffi->data, 0, sizeof (ffi->data));
+		ok = FindNextFileW (ffi->hFind, &ffi->data);
 		Py_END_ALLOW_THREADS
 		if (!ok) {
 			if (GetLastError()==ERROR_NO_MORE_FILES) {
@@ -86,12 +86,12 @@ PyObject *filename;
 			return PyErr_SetFromWindowsErr (GetLastError());
 		}
 	}
-    filename = PyUnicode_FromWideChar (ffi->buffer.cFileName, -1);
-    if (!filename) {
+    file_data = FileDataType_from_find_data(&ffi->data);
+    if (!file_data) {
         return PyErr_SetFromWindowsErr (GetLastError());
     }
     else {
-        return Py_BuildValue ("O", filename);
+        return Py_BuildValue ("O", file_data);
     }
 }
 
@@ -150,10 +150,10 @@ FileIterator *iterator;
     iterator->seen_first = FALSE;
     iterator->empty = FALSE;
     iterator->hFind = INVALID_HANDLE_VALUE;
-    memset(&iterator->buffer, 0, sizeof(iterator->buffer));
+    memset(&iterator->data, 0, sizeof(iterator->data));
 
     Py_BEGIN_ALLOW_THREADS
-    iterator->hFind = FindFirstFileW (PyUnicode_AS_UNICODE (po), &iterator->buffer);
+    iterator->hFind = FindFirstFileW (PyUnicode_AS_UNICODE (po), &iterator->data);
     Py_END_ALLOW_THREADS
 
     if (iterator->hFind == INVALID_HANDLE_VALUE) {

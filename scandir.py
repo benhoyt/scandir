@@ -335,7 +335,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going top down
     if topdown:
-        yield top, dirs, nondirs
+        yield top, [e.name for e in dirs], [e.name for e in nondirs]
 
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
@@ -346,4 +346,4 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going bottom up
     if not topdown:
-        yield top, dirs, nondirs
+        yield top, [e.name for e in dirs], [e.name for e in nondirs]

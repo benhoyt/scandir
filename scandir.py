@@ -335,7 +335,23 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going top down
     if topdown:
-        yield top, [e.name for e in dirs], [e.name for e in nondirs]
+        # Need to do some fancy footwork here as caller is allowed to modify
+        # dir_names, and we really want them to modify dirs (list of DirEntry
+        # objects) instead. Keep a mapping of entries keyed by name.
+        dir_names = []
+        entries_by_name = {}
+        for entry in dirs:
+            dir_names.append(entry.name)
+            entries_by_name[entry.name] = entry
+
+        yield top, dir_names, [e.name for e in nondirs]
+
+        dirs = []
+        for dir_name in dir_names:
+            entry = entries_by_name.get(dir_name)
+            if entry is None:
+                entry = DirEntry(top, dir_name, None, None)
+            dirs.append(entry)
 
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:

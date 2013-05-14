@@ -5,6 +5,8 @@ import unittest
 
 import scandir
 
+walk_func = scandir.walk
+
 class WalkTests(unittest.TestCase):
     testfn = os.path.join(os.path.dirname(__file__), 'temp')
 
@@ -40,14 +42,18 @@ class WalkTests(unittest.TestCase):
             f = open(path, "w")
             f.write("I'm " + path + " and proud of it.  Blame test_os.\n")
             f.close()
-        if hasattr(os, "symlink"):
-            os.symlink(os.path.abspath(t2_path), link_path)
-            sub2_tree = (sub2_path, ["link"], ["tmp3"])
+        has_symlink = hasattr(os, "symlink")
+        if has_symlink:
+            try:
+                os.symlink(os.path.abspath(t2_path), link_path, True)
+                sub2_tree = (sub2_path, ["link"], ["tmp3"])
+            except NotImplementedError:
+                sub2_tree = (sub2_path, [], ["tmp3"])
         else:
             sub2_tree = (sub2_path, [], ["tmp3"])
 
         # Walk top-down.
-        all = list(scandir.walk(walk_path))
+        all = list(walk_func(walk_path))
         self.assertEqual(len(all), 4)
         # We can't know which order SUB1 and SUB2 will appear in.
         # Not flipped:  TESTFN, SUB1, SUB11, SUB2
@@ -61,7 +67,7 @@ class WalkTests(unittest.TestCase):
 
         # Prune the search.
         all = []
-        for root, dirs, files in scandir.walk(walk_path):
+        for root, dirs, files in walk_func(walk_path):
             all.append((root, dirs, files))
             # Don't descend into SUB1.
             if 'SUB1' in dirs:
@@ -72,7 +78,7 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(all[1], sub2_tree)
 
         # Walk bottom-up.
-        all = list(scandir.walk(walk_path, topdown=False))
+        all = list(walk_func(walk_path, topdown=False))
         self.assertEqual(len(all), 4)
         # We can't know which order SUB1 and SUB2 will appear in.
         # Not flipped:  SUB11, SUB1, SUB2, TESTFN
@@ -84,9 +90,9 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(all[flipped + 1], (sub1_path, ["SUB11"], ["tmp2"]))
         self.assertEqual(all[2 - 2 * flipped], sub2_tree)
 
-        if hasattr(os, "symlink"):
+        if has_symlink:
             # Walk, following symlinks.
-            for root, dirs, files in scandir.walk(walk_path, followlinks=True):
+            for root, dirs, files in walk_func(walk_path, followlinks=True):
                 if root == link_path:
                     self.assertEqual(dirs, [])
                     self.assertEqual(files, ["tmp4"])

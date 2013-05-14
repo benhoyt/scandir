@@ -47,6 +47,8 @@ attributes_to_mode(DWORD attr)
         m |= 0444;
     else
         m |= 0666;
+    if (attr & FILE_ATTRIBUTE_REPARSE_POINT)
+        m |= 0120000;  // S_IFLNK
     return m;
 }
 

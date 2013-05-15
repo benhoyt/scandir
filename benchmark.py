@@ -105,12 +105,7 @@ def create_tree(path, depth=DEPTH):
     for i in range(NUM_FILES):
         filename = os.path.join(path, 'file{0:03}.txt'.format(i))
         with open(filename, 'wb') as f:
-            line = b'The quick brown fox jumps over the lazy dog.\n'
-            if i == 0:
-                # So we have at least one big file per directory
-                f.write(line * 20000)
-            else:
-                f.write(line * i * 10)
+            f.write('foo')
     if depth <= 1:
         return
     for i in range(NUM_DIRS):
@@ -182,7 +177,7 @@ def benchmark(path, get_size=False):
 def main():
     """Usage: benchmark.py [-h] [tree_dir]
 
-Create 230MB directory tree named "benchtree" (relative to this script) and
+Create a large directory tree named "benchtree" (relative to this script) and
 benchmark os.walk() versus scandir.walk(). If tree_dir is specified, benchmark
 using it instead of creating a tree.
 """

@@ -271,6 +271,7 @@ scandir_helper(PyObject *self, PyObject *args)
     }
     if (!PyArg_ParseTuple(args, "et:scandir_helper", Py_FileSystemDefaultEncoding, &name))
         return NULL;
+
     Py_BEGIN_ALLOW_THREADS
     dirp = opendir(name);
     Py_END_ALLOW_THREADS
@@ -367,6 +368,68 @@ DIR *p_dir;
 static PyObject *
 fi_iternext(PyObject *iterator)
 {
+/*
+FileIterator *fi = (FileIterator *)iterator;
+DIR *p_dir;
+BOOL is_finished = FALSE;
+
+    is_finished = FALSE;
+    if (fi->handle == NULL) {
+        Py_BEGIN_ALLOW_THREADS
+        p_dir = opendir(name);
+        Py_END_ALLOW_THREADS
+        if (p_dir == NULL) {
+            return posix_error_with_allocated_filename(name);
+        }
+        fi->handle = p_dir;
+    }
+
+    errno = 0;
+    Py_BEGIN_ALLOW_THREADS
+    ep = readdir(p_dir);
+    Py_END_ALLOW_THREADS
+    if (ep == NULL) {
+        if (errno == 0) {
+            is_finished = TRUE;
+        } else {
+            Py_BEGIN_ALLOW_THREADS
+            closedir(dirp);
+            Py_END_ALLOW_THREADS
+            return posix_error_with_allocated_filename(name);
+        }
+    }
+    v = FROM_STRING(ep->d_name, NAMLEN(ep));
+    if (v == NULL) {
+        return NULL
+    }
+    if (arg_is_unicode) {
+        PyObject *w;
+
+        w = PyUnicode_FromEncodedObject(v,
+                                        Py_FileSystemDefaultEncoding,
+                                        "strict");
+        if (w != NULL) {
+            Py_DECREF(v);
+            v = w;
+        }
+        else {
+            PyErr_Clear();
+        }
+    }
+    Py_DECREF(v);
+
+    Py_BEGIN_ALLOW_THREADS
+    closedir(p_dir);
+    Py_END_ALLOW_THREADS
+
+    if (is_finished) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+
+    return Py_BuildValue("u#kk", v, ep->d_ino, ep->d_type);
+*/
+    return Py_None;
 }
 #endif
 

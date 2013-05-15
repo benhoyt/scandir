@@ -116,9 +116,8 @@ static PyStructSequence_Desc stat_result_desc = {
 #define PATTERN_LEN 1024
 typedef struct {
 	PyObject_HEAD
-	HANDLE hFind;
     wchar_t pattern[PATTERN_LEN];
-	WIN32_FIND_DATAW data;
+    HANDLE hFind;
 } FileIterator;
 
 static void
@@ -134,9 +133,10 @@ ffi_iternext(PyObject *iterator)
 {
 PyObject *file_data;
 BOOL is_finished;
+WIN32_FIND_DATAW data;
 
 	FileIterator *fi = (FileIterator *)iterator;
-    memset(&fi->data, 0, sizeof(fi->data));
+    memset(&data, 0, sizeof(data));
 
     /*
     Put data into the iterator's data buffer, using the state of the
@@ -149,7 +149,7 @@ BOOL is_finished;
     is_finished = FALSE;
     if (fi->hFind == NULL) {
         Py_BEGIN_ALLOW_THREADS
-        fi->hFind = FindFirstFileW(fi->pattern, &fi->data);
+        fi->hFind = FindFirstFileW(fi->pattern, &data);
         Py_END_ALLOW_THREADS
 
         if (fi->hFind == INVALID_HANDLE_VALUE) {
@@ -162,7 +162,7 @@ BOOL is_finished;
 	else {
 		BOOL ok;
 		Py_BEGIN_ALLOW_THREADS
-		ok = FindNextFileW(fi->hFind, &fi->data);
+		ok = FindNextFileW(fi->hFind, &data);
 		Py_END_ALLOW_THREADS
 
         if (!ok) {
@@ -178,13 +178,13 @@ BOOL is_finished;
         return NULL;
     }
 
-    file_data = find_data_to_statresult(&fi->data);
+    file_data = find_data_to_statresult(&data);
     if (!file_data) {
         return PyErr_SetFromWindowsErr(GetLastError());
     }
     else {
         return Py_BuildValue("u#O",
-                            fi->data.cFileName, wcslen(fi->data.cFileName),
+                            data.cFileName, wcslen(data.cFileName),
                             file_data);
     }
 }
@@ -235,8 +235,8 @@ FileIterator *iterator;
     /*
     Create and return a FileIterator object.
 
-    Initialise it with the pattern to iterate over, an empty data block, and an empty handle,
-    the latter indicating to the iternext implementation that iteration has not yet started.
+    Initialise it with the pattern to iterate over and an empty handle, the latter indicating
+    to the iternext implementation that iteration has not yet started.
     */
     iterator = PyObject_New(FileIterator, &FileIterator_Type);
     if (iterator == NULL) {

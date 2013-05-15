@@ -21,6 +21,16 @@
 #define FROM_STRING PyString_FromStringAndSize
 #endif
 
+#define PATTERN_LEN 1024
+typedef struct {
+	PyObject_HEAD
+    wchar_t pattern[PATTERN_LEN];
+    void *handle;
+} FileIterator;
+
+static PyObject *_iterfile(Py_UNICODE *);
+static PyObject *iterfile (PyObject *, PyObject *);
+
 #ifdef MS_WINDOWS
 
 static PyObject *
@@ -115,13 +125,6 @@ static PyStructSequence_Desc stat_result_desc = {
     10
 };
 
-#define PATTERN_LEN 1024
-typedef struct {
-	PyObject_HEAD
-    wchar_t pattern[PATTERN_LEN];
-    void *handle;
-} FileIterator;
-
 static void
 ffi_dealloc(FileIterator *iterator)
 {
@@ -200,77 +203,6 @@ HANDLE *p_handle;
                             file_data);
     }
 }
-
-PyTypeObject FileIterator_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-	"FileIterator",				        /* tp_name */
-	sizeof(FileIterator),			    /* tp_basicsize */
-	0,					                /* tp_itemsize */
-	/* methods */
-	(destructor)ffi_dealloc, 		    /* tp_dealloc */
-	0,					                /* tp_print */
-	0,					                /* tp_getattr */
-	0,					                /* tp_setattr */
-	0,					                /* tp_compare */
-	0,					                /* tp_repr */
-	0,					                /* tp_as_number */
-	0,					                /* tp_as_sequence */
-	0,					                /* tp_as_mapping */
-	0,					                /* tp_hash */
-	0,					                /* tp_call */
-	0,					                /* tp_str */
-	PyObject_GenericGetAttr,		    /* tp_getattro */
-	0,					                /* tp_setattro */
-	0,					                /* tp_as_buffer */
-	Py_TPFLAGS_DEFAULT,                 /* tp_flags */
- 	0,					                /* tp_doc */
- 	0,					                /* tp_traverse */
- 	0,					                /* tp_clear */
-	0,					                /* tp_richcompare */
-	0,					                /* tp_weaklistoffset */
-	PyObject_SelfIter,	                /* tp_iter */
-	(iternextfunc)ffi_iternext,		    /* tp_iternext */
-	0,					                /* tp_methods */
-	0,					                /* tp_members */
-	0,					                /* tp_getset */
-	0,					                /* tp_base */
-	0,					                /* tp_dict */
-	0,					                /* tp_descr_get */
-	0,					                /* tp_descr_set */
-};
-
-static PyObject*
-_iterfile (Py_UNICODE *pattern)
-{
-FileIterator *iterator;
-
-    /*
-    Create and return a FileIterator object.
-
-    Initialise it with the pattern to iterate over and an empty handle, the latter indicating
-    to the iternext implementation that iteration has not yet started.
-    */
-    iterator = PyObject_New(FileIterator, &FileIterator_Type);
-    if (iterator == NULL) {
-        return NULL;
-    }
-    wcscpy(iterator->pattern, pattern);
-    iterator->handle = NULL;
-
-    return (PyObject *)iterator;
-}
-
-static PyObject*
-iterfile (PyObject *self, PyObject *args)
-{
-PyUnicodeObject *po;
-
-    if (!PyArg_ParseTuple(args, "U", &po)) {
-        return NULL;
-    }
-    return _iterfile(PyUnicode_AS_UNICODE(po));
-}
-
 
 static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
@@ -415,6 +347,76 @@ scandir_helper(PyObject *self, PyObject *args)
     return d;
 }
 
+static void
+ffi_dealloc(FileIterator *iterator)
+{
+}
+
+static PyObject *
+ffi_iternext(PyObject *iterator)
+{
+}
+#endif
+
+PyTypeObject FileIterator_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+	"FileIterator",				        /* tp_name */
+	sizeof(FileIterator),			    /* tp_basicsize */
+	0,					                /* tp_itemsize */
+	/* methods */
+	(destructor)ffi_dealloc, 		    /* tp_dealloc */
+	0,					                /* tp_print */
+	0,					                /* tp_getattr */
+	0,					                /* tp_setattr */
+	0,					                /* tp_compare */
+	0,					                /* tp_repr */
+	0,					                /* tp_as_number */
+	0,					                /* tp_as_sequence */
+	0,					                /* tp_as_mapping */
+	0,					                /* tp_hash */
+	0,					                /* tp_call */
+	0,					                /* tp_str */
+	PyObject_GenericGetAttr,		    /* tp_getattro */
+	0,					                /* tp_setattro */
+	0,					                /* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT,                 /* tp_flags */
+ 	0,					                /* tp_doc */
+ 	0,					                /* tp_traverse */
+ 	0,					                /* tp_clear */
+	0,					                /* tp_richcompare */
+	0,					                /* tp_weaklistoffset */
+	PyObject_SelfIter,	                /* tp_iter */
+	(iternextfunc)ffi_iternext,		    /* tp_iternext */
+	0,					                /* tp_methods */
+	0,					                /* tp_members */
+	0,					                /* tp_getset */
+	0,					                /* tp_base */
+	0,					                /* tp_dict */
+	0,					                /* tp_descr_get */
+	0,					                /* tp_descr_set */
+};
+
+static PyObject*
+_iterfile (Py_UNICODE *pattern)
+{
+FileIterator *iterator;
+
+    /*
+    Create and return a FileIterator object.
+
+    Initialise it with the pattern to iterate over and an empty handle, the latter indicating
+    to the iternext implementation that iteration has not yet started.
+    */
+    iterator = PyObject_New(FileIterator, &FileIterator_Type);
+    if (iterator == NULL) {
+        return NULL;
+    }
+    wcscpy(iterator->pattern, pattern);
+    iterator->handle = NULL;
+
+    return (PyObject *)iterator;
+}
+
 static PyObject*
 iterfile (PyObject *self, PyObject *args)
 {
@@ -423,10 +425,8 @@ PyUnicodeObject *po;
     if (!PyArg_ParseTuple(args, "U", &po)) {
         return NULL;
     }
-    return Py_None;
+    return _iterfile(PyUnicode_AS_UNICODE(po));
 }
-
-#endif
 
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},

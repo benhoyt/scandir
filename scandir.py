@@ -234,21 +234,14 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     dirent_h = """
 typedef uint64_t __ino_t;
 typedef int64_t __ino64_t;
-typedef long int __off_t;
-typedef long int __off64_t;
-typedef ssize_t __ssize_t;
 
-// For Linux. Only care about d_name and d_type.
 struct dirent
   {
     __ino_t d_ino;
-    __off_t d_off;
-    unsigned short int d_reclen;
     unsigned char d_type;
     char d_name[256];
+    ...;
   };
-  
-typedef struct dirent struct_dirent;
   
 #define DT_UNKNOWN ...
 #define DT_FIFO ...
@@ -260,7 +253,7 @@ typedef struct dirent struct_dirent;
 #define DT_SOCK ...
 #define DT_WHT ...
 
-typedef struct __dirstream DIR;
+typedef ... DIR;
 
 extern DIR *opendir (const char *__name);
 
@@ -280,7 +273,7 @@ extern int scandir (const char * __dir,
     
     ffi = cffi.FFI()
     ffi.cdef(dirent_h)
-    libc = ffi.dlopen(None)
+    libc = ffi.verify("#include <dirent.h>")
 
     # Rather annoying how the dirent struct is slightly different on each
     # platform. The only fields we care about are d_name and d_type.
@@ -289,8 +282,7 @@ extern int scandir (const char * __dir,
 
     for attr in dir(libc):
         if attr.startswith("DT_"):
-            print attr
-            globals()['attr'] = getattr(libc, attr)
+            globals()[attr] = getattr(libc, attr)
     
     dirent_p = ffi.typeof("struct dirent *")
     dirent_pp = ffi.typeof("struct dirent **")

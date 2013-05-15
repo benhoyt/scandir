@@ -119,14 +119,20 @@ static PyStructSequence_Desc stat_result_desc = {
 typedef struct {
 	PyObject_HEAD
     wchar_t pattern[PATTERN_LEN];
-    HANDLE hFind;
+    void *handle;
 } FileIterator;
 
 static void
 ffi_dealloc(FileIterator *iterator)
 {
-	if (iterator->hFind != INVALID_HANDLE_VALUE)
-		FindClose(iterator->hFind);
+HANDLE handle;
+
+    if (iterator->handle != NULL) {
+        handle = *((HANDLE *)iterator->handle);
+        if (handle != INVALID_HANDLE_VALUE)
+            FindClose(handle);
+        free(iterator->handle);
+    }
 	PyObject_Del(iterator);
 }
 
@@ -136,6 +142,7 @@ ffi_iternext(PyObject *iterator)
 PyObject *file_data;
 BOOL is_finished;
 WIN32_FIND_DATAW data;
+HANDLE *p_handle;
 
 	FileIterator *fi = (FileIterator *)iterator;
     memset(&data, 0, sizeof(data));
@@ -149,22 +156,25 @@ WIN32_FIND_DATAW data;
     a StopIteration exception.
     */
     is_finished = FALSE;
-    if (fi->hFind == NULL) {
+    if (fi->handle == NULL) {
+        p_handle = malloc(sizeof(HANDLE));
         Py_BEGIN_ALLOW_THREADS
-        fi->hFind = FindFirstFileW(fi->pattern, &data);
+        *p_handle = FindFirstFileW(fi->pattern, &data);
         Py_END_ALLOW_THREADS
 
-        if (fi->hFind == INVALID_HANDLE_VALUE) {
+        if (*p_handle == INVALID_HANDLE_VALUE) {
             if (GetLastError() != ERROR_FILE_NOT_FOUND) {
                 return PyErr_SetFromWindowsErr(GetLastError());
             }
             is_finished = TRUE;
         }
+        fi->handle = (void *)p_handle;
     }
 	else {
 		BOOL ok;
+        p_handle = (HANDLE *)fi->handle;
 		Py_BEGIN_ALLOW_THREADS
-		ok = FindNextFileW(fi->hFind, &data);
+		ok = FindNextFileW(*p_handle, &data);
 		Py_END_ALLOW_THREADS
 
         if (!ok) {
@@ -245,7 +255,7 @@ FileIterator *iterator;
         return NULL;
     }
     wcscpy(iterator->pattern, pattern);
-    iterator->hFind = NULL;
+    iterator->handle = NULL;
 
     return (PyObject *)iterator;
 }

@@ -132,8 +132,11 @@ HANDLE handle;
 
     if (iterator->handle != NULL) {
         handle = *((HANDLE *)iterator->handle);
-        if (handle != INVALID_HANDLE_VALUE)
+        if (handle != INVALID_HANDLE_VALUE) {
+            Py_BEGIN_ALLOW_THREADS
             FindClose(handle);
+            Py_END_ALLOW_THREADS
+        }
         free(iterator->handle);
     }
 	PyObject_Del(iterator);
@@ -350,6 +353,15 @@ scandir_helper(PyObject *self, PyObject *args)
 static void
 fi_dealloc(FileIterator *iterator)
 {
+DIR *p_dir;
+
+    if (iterator->handle != NULL) {
+        p_dir = (DIR *)iterator->handle;
+        Py_BEGIN_ALLOW_THREADS
+        closedir(p_dir);
+        Py_END_ALLOW_THREADS
+    }
+	PyObject_Del(iterator);
 }
 
 static PyObject *

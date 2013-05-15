@@ -14,9 +14,11 @@
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
+#define FROM_STRING PyUnicode_FromStringAndSize
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
+#define FROM_STRING PyString_FromStringAndSize
 #endif
 
 #ifdef MS_WINDOWS
@@ -261,7 +263,7 @@ PyUnicodeObject *po;
 
 
 static PyObject *
-listdir(PyObject *self, PyObject *args)
+scandir_helper(PyObject *self, PyObject *args)
 {
     Py_UNICODE *wnamebuf;
     Py_ssize_t len;
@@ -357,7 +359,7 @@ scandir_helper(PyObject *self, PyObject *args)
             (NAMLEN(ep) == 1 ||
              (ep->d_name[1] == '.' && NAMLEN(ep) == 2)))
             continue;
-        v = PyString_FromStringAndSize(ep->d_name, NAMLEN(ep));
+        v = FROM_STRING(ep->d_name, NAMLEN(ep));
         if (v == NULL) {
             Py_DECREF(d);
             d = NULL;
@@ -403,10 +405,21 @@ scandir_helper(PyObject *self, PyObject *args)
     return d;
 }
 
+static PyObject*
+iterfile (PyObject *self, PyObject *args)
+{
+PyUnicodeObject *po;
+
+    if (!PyArg_ParseTuple(args, "U", &po)) {
+        return NULL;
+    }
+    return Py_None;
+}
+
 #endif
 
 static PyMethodDef scandir_methods[] = {
-    {"listdir", (PyCFunction)listdir, METH_VARARGS, NULL},
+    {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},
     {"iterfile", (PyCFunction)iterfile, METH_VARARGS, NULL},
     {NULL, NULL},
 };

@@ -126,7 +126,7 @@ static PyStructSequence_Desc stat_result_desc = {
 };
 
 static void
-ffi_dealloc(FileIterator *iterator)
+fi_dealloc(FileIterator *iterator)
 {
 HANDLE handle;
 
@@ -140,7 +140,7 @@ HANDLE handle;
 }
 
 static PyObject *
-ffi_iternext(PyObject *iterator)
+fi_iternext(PyObject *iterator)
 {
 PyObject *file_data;
 BOOL is_finished;
@@ -348,12 +348,12 @@ scandir_helper(PyObject *self, PyObject *args)
 }
 
 static void
-ffi_dealloc(FileIterator *iterator)
+fi_dealloc(FileIterator *iterator)
 {
 }
 
 static PyObject *
-ffi_iternext(PyObject *iterator)
+fi_iternext(PyObject *iterator)
 {
 }
 #endif
@@ -364,7 +364,7 @@ PyTypeObject FileIterator_Type = {
 	sizeof(FileIterator),			    /* tp_basicsize */
 	0,					                /* tp_itemsize */
 	/* methods */
-	(destructor)ffi_dealloc, 		    /* tp_dealloc */
+	(destructor)fi_dealloc, 		    /* tp_dealloc */
 	0,					                /* tp_print */
 	0,					                /* tp_getattr */
 	0,					                /* tp_setattr */
@@ -386,7 +386,7 @@ PyTypeObject FileIterator_Type = {
 	0,					                /* tp_richcompare */
 	0,					                /* tp_weaklistoffset */
 	PyObject_SelfIter,	                /* tp_iter */
-	(iternextfunc)ffi_iternext,		    /* tp_iternext */
+	(iternextfunc)fi_iternext,		    /* tp_iternext */
 	0,					                /* tp_methods */
 	0,					                /* tp_members */
 	0,					                /* tp_getset */

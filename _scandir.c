@@ -133,10 +133,9 @@ static PyObject *
 ffi_iternext(PyObject *iterator)
 {
 PyObject *file_data;
-BOOL is_empty;
+BOOL is_finished;
 
 	FileIterator *fi = (FileIterator *)iterator;
-    is_empty = FALSE;
     memset(&fi->data, 0, sizeof(fi->data));
 
     /*
@@ -147,16 +146,17 @@ BOOL is_empty;
     If the API indicates that there are no (or no more) files, raise
     a StopIteration exception.
     */
+    is_finished = FALSE;
     if (fi->hFind == NULL) {
         Py_BEGIN_ALLOW_THREADS
         fi->hFind = FindFirstFileW(fi->pattern, &fi->data);
         Py_END_ALLOW_THREADS
 
         if (fi->hFind == INVALID_HANDLE_VALUE) {
-            if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+            if (GetLastError() != ERROR_FILE_NOT_FOUND) {
                 return PyErr_SetFromWindowsErr(GetLastError());
             }
-            is_empty = TRUE;
+            is_finished = TRUE;
         }
     }
 	else {
@@ -169,11 +169,11 @@ BOOL is_empty;
 			if (GetLastError() != ERROR_NO_MORE_FILES) {
 			    return PyErr_SetFromWindowsErr(GetLastError());
 			}
-            is_empty = TRUE;
+            is_finished = TRUE;
 		}
 	}
 
-    if (is_empty) {
+    if (is_finished) {
         PyErr_SetNone(PyExc_StopIteration);
         return NULL;
     }
@@ -183,7 +183,9 @@ BOOL is_empty;
         return PyErr_SetFromWindowsErr(GetLastError());
     }
     else {
-        return Py_BuildValue("O", file_data);
+        return Py_BuildValue("u#O",
+                            fi->data.cFileName, wcslen(fi->data.cFileName),
+                            file_data);
     }
 }
 
@@ -226,14 +228,9 @@ PyTypeObject FileIterator_Type = {
 };
 
 static PyObject*
-iterfile (PyObject *self, PyObject *args)
+_iterfile (Py_UNICODE *pattern)
 {
-PyUnicodeObject *po;
 FileIterator *iterator;
-
-    if (!PyArg_ParseTuple(args, "U", &po)) {
-        return NULL;
-    }
 
     /*
     Create and return a FileIterator object.
@@ -245,24 +242,31 @@ FileIterator *iterator;
     if (iterator == NULL) {
         return NULL;
     }
-    wcscpy(iterator->pattern, PyUnicode_AS_UNICODE(po));
+    wcscpy(iterator->pattern, pattern);
     iterator->hFind = NULL;
 
     return (PyObject *)iterator;
 }
 
+static PyObject*
+iterfile (PyObject *self, PyObject *args)
+{
+PyUnicodeObject *po;
+
+    if (!PyArg_ParseTuple(args, "U", &po)) {
+        return NULL;
+    }
+    return _iterfile(PyUnicode_AS_UNICODE(po));
+}
+
 
 static PyObject *
-scandir_helper(PyObject *self, PyObject *args)
+listdir(PyObject *self, PyObject *args)
 {
-    PyObject *d, *v;
-    HANDLE hFindFile;
-    BOOL result;
-    WIN32_FIND_DATAW wFileData;
     Py_UNICODE *wnamebuf;
     Py_ssize_t len;
     PyObject *po;
-    PyObject *name_stat;
+    PyObject *iterator;
 
     if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
         return NULL;
@@ -281,72 +285,14 @@ scandir_helper(PyObject *self, PyObject *args)
             wnamebuf[len++] = L'\\';
         wcscpy(wnamebuf + len, L"*.*");
     }
-    if ((d = PyList_New(0)) == NULL) {
-        free(wnamebuf);
-        return NULL;
-    }
-    Py_BEGIN_ALLOW_THREADS
-    hFindFile = FindFirstFileW(wnamebuf, &wFileData);
-    Py_END_ALLOW_THREADS
-    if (hFindFile == INVALID_HANDLE_VALUE) {
-        int error = GetLastError();
-        if (error == ERROR_FILE_NOT_FOUND) {
-            free(wnamebuf);
-            return d;
-        }
-        Py_DECREF(d);
-        win32_error_unicode("FindFirstFileW", wnamebuf);
-        free(wnamebuf);
-        return NULL;
-    }
-    do {
-        /* Skip over . and .. */
-        if (wcscmp(wFileData.cFileName, L".") != 0 &&
-            wcscmp(wFileData.cFileName, L"..") != 0) {
-            v = PyUnicode_FromUnicode(wFileData.cFileName, wcslen(wFileData.cFileName));
-            if (v == NULL) {
-                Py_DECREF(d);
-                d = NULL;
-                break;
-            }
-            name_stat = PyTuple_Pack(2, v, find_data_to_statresult(&wFileData));
-            if (name_stat == NULL) {
-                Py_DECREF(v);
-                Py_DECREF(d);
-                d = NULL;
-                break;
-            }
-            if (PyList_Append(d, name_stat) != 0) {
-                Py_DECREF(v);
-                Py_DECREF(d);
-                Py_DECREF(name_stat);
-                d = NULL;
-                break;
-            }
-            Py_DECREF(v);
-        }
-        Py_BEGIN_ALLOW_THREADS
-        result = FindNextFileW(hFindFile, &wFileData);
-        Py_END_ALLOW_THREADS
-        /* FindNextFile sets error to ERROR_NO_MORE_FILES if
-           it got to the end of the directory. */
-        if (!result && GetLastError() != ERROR_NO_MORE_FILES) {
-            Py_DECREF(d);
-            win32_error_unicode("FindNextFileW", wnamebuf);
-            FindClose(hFindFile);
-            free(wnamebuf);
-            return NULL;
-        }
-    } while (result == TRUE);
 
-    if (FindClose(hFindFile) == FALSE) {
-        Py_DECREF(d);
-        win32_error_unicode("FindClose", wnamebuf);
+    iterator = iterfile(self, Py_BuildValue("(u)", wnamebuf));
+    if (iterator == NULL) {
         free(wnamebuf);
         return NULL;
     }
-    free(wnamebuf);
-    return d;
+
+    return iterator;
 }
 
 #else  // Linux / OS X
@@ -460,7 +406,7 @@ scandir_helper(PyObject *self, PyObject *args)
 #endif
 
 static PyMethodDef scandir_methods[] = {
-    {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},
+    {"listdir", (PyCFunction)listdir, METH_VARARGS, NULL},
     {"iterfile", (PyCFunction)iterfile, METH_VARARGS, NULL},
     {NULL, NULL},
 };

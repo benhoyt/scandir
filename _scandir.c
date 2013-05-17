@@ -14,9 +14,11 @@
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
+#define FROM_STRING PyUnicode_FromStringAndSize
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
+#define FROM_STRING PyString_FromStringAndSize
 #endif
 
 #ifdef MS_WINDOWS
@@ -47,6 +49,8 @@ attributes_to_mode(DWORD attr)
         m |= 0444;
     else
         m |= 0666;
+    if (attr & FILE_ATTRIBUTE_REPARSE_POINT)
+        m |= 0120000;  // S_IFLNK
     return m;
 }
 
@@ -272,7 +276,7 @@ scandir_helper(PyObject *self, PyObject *args)
             (NAMLEN(ep) == 1 ||
              (ep->d_name[1] == '.' && NAMLEN(ep) == 2)))
             continue;
-        v = PyString_FromStringAndSize(ep->d_name, NAMLEN(ep));
+        v = FROM_STRING(ep->d_name, NAMLEN(ep));
         if (v == NULL) {
             Py_DECREF(d);
             d = NULL;

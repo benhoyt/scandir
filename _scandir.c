@@ -15,11 +15,54 @@
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
 #define FROM_STRING PyUnicode_FromStringAndSize
+#define UNICODE_LENGTH PyUnicode_GET_LENGTH
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
 #define FROM_STRING PyString_FromStringAndSize
+#define UNICODE_LENGTH PyUnicode_GET_SIZE
 #endif
+
+typedef struct {
+    BOOL got_unicode;
+    char *cpattern;
+    wchar_t *wpattern;
+} Pattern;
+
+static int
+pattern_from_args(PyObject *args, Pattern *pattern, BOOL want_unicode)
+{
+    pattern->cpattern = NULL;
+    pattern->wpattern = NULL;
+    if (PyArg_ParseTuple(args, "U:pattern_from_args", &pattern->wpattern)) {
+        pattern->got_unicode = TRUE;
+    } else {
+        pattern->got_unicode = FALSE;
+        PyErr_Clear();
+    }
+    if (want_unicode) {
+        if (pattern->got_unicode) {
+            return 0;
+        } else {
+            if (PyArg_ParseTuple(args, "U:pattern_from_args", &pattern->wpattern)) {
+        }
+
+
+
+        pattern->got_unicode = FALSE;
+        if (!PyArg_ParseTuple(args, "et:pattern_from_args",
+            Py_FileSystemDefaultEncoding, &pattern->cpattern)) {
+            return 1;
+        }
+    }
+    if (want_unicode && !pattern->got_unicode) {
+
+    }
+    if (!want_unicode && pattern->got_unicode) {
+    }
+
+    return 0;
+}
 
 #define PATTERN_LEN 1024
 typedef struct {

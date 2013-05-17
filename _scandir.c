@@ -34,18 +34,21 @@ pattern_from_args(PyObject *args, Pattern *pattern, BOOL want_unicode)
 {
     pattern->cpattern = NULL;
     pattern->wpattern = NULL;
-    if (PyArg_ParseTuple(args, "U:pattern_from_args", &pattern->wpattern)) {
+    if (PyArg_ParseTuple(args, "u:pattern_from_args", &pattern->wpattern)) {
         pattern->got_unicode = TRUE;
     } else {
         pattern->got_unicode = FALSE;
         PyErr_Clear();
     }
+
     if (want_unicode) {
         if (pattern->got_unicode) {
             return 0;
         } else {
-            if (PyArg_ParseTuple(args, "U:pattern_from_args", &pattern->wpattern)) {
+            if (PyArg_ParseTuple(args, "et:pattern_from_args", &pattern->wpattern)) {
         }
+    } else {
+    }
 
 
 

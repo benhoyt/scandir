@@ -174,7 +174,7 @@ scandir_helper(PyObject *self, PyObject *args)
                 d = NULL;
                 break;
             }
-            name_stat = PyTuple_Pack(2, v, find_data_to_statresult(&wFileData));
+            name_stat = Py_BuildValue("ON", v, find_data_to_statresult(&wFileData));
             if (name_stat == NULL) {
                 Py_DECREF(v);
                 Py_DECREF(d);
@@ -188,6 +188,7 @@ scandir_helper(PyObject *self, PyObject *args)
                 d = NULL;
                 break;
             }
+            Py_DECREF(name_stat);
             Py_DECREF(v);
         }
         Py_BEGIN_ALLOW_THREADS
@@ -298,7 +299,7 @@ scandir_helper(PyObject *self, PyObject *args)
                 PyErr_Clear();
             }
         }
-        name_ino_type = PyTuple_Pack(3, v, FROM_LONG(ep->d_ino), FROM_LONG(ep->d_type));
+        name_ino_type = Py_BuildValue("ONN", v, FROM_LONG(ep->d_ino), FROM_LONG(ep->d_type));
         if (name_ino_type == NULL) {
             Py_DECREF(v);
             Py_DECREF(d);
@@ -312,6 +313,7 @@ scandir_helper(PyObject *self, PyObject *args)
             d = NULL;
             break;
         }
+        Py_DECREF(name_ino_type);
         Py_DECREF(v);
     }
     Py_BEGIN_ALLOW_THREADS

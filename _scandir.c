@@ -230,6 +230,7 @@ path_converter(PyObject *o, void *p) {
         return 1;
     }
 
+
     unicode = PyUnicode_FromObject(o);
     if (unicode) {
 #ifdef MS_WINDOWS
@@ -351,8 +352,8 @@ typedef struct {
     void *handle;
 } FileIterator;
 
-static PyObject *_iterfile(Py_UNICODE *);
-static PyObject *iterfile (PyObject *, PyObject *);
+static PyObject *_iterfile(path_t *);
+static PyObject *iterfile (PyObject *, PyObject *, PyObject *);
 
 #ifdef MS_WINDOWS
 
@@ -556,7 +557,7 @@ scandir_helper(PyObject *self, PyObject *args)
         wcscpy(wnamebuf + len, L"*.*");
     }
 
-    iterator = iterfile(self, Py_BuildValue("(u)", wnamebuf));
+    iterator = iterfile(self, Py_BuildValue("(u)", wnamebuf), NULL);
     if (iterator == NULL) {
         free(wnamebuf);
         return NULL;
@@ -795,7 +796,7 @@ PyTypeObject FileIterator_Type = {
 };
 
 static PyObject*
-_iterfile (Py_UNICODE *pattern)
+_iterfile (path_t *path)
 {
 FileIterator *iterator;
 
@@ -809,26 +810,43 @@ FileIterator *iterator;
     if (iterator == NULL) {
         return NULL;
     }
-    wcscpy(iterator->pattern, pattern);
+    wcscpy(iterator->pattern, path->wide);
     iterator->handle = NULL;
 
     return (PyObject *)iterator;
 }
 
 static PyObject*
-iterfile (PyObject *self, PyObject *args)
+iterfile (PyObject *self, PyObject *args, PyObject *kwargs)
 {
-PyUnicodeObject *po;
+    path_t path;
+    static char *keywords[] = {"path", NULL};
+    PyObject *return_value;
 
-    if (!PyArg_ParseTuple(args, "U", &po)) {
+    memset(&path, 0, sizeof(path));
+    path.function_name = "iterfile";
+#ifdef HAVE_FDOPENDIR
+    path.allow_fd = 1;
+    path.fd = -1;
+#endif
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:iterfile", keywords,
+                                     path_converter, &path)) {
         return NULL;
     }
-    return _iterfile(PyUnicode_AS_UNICODE(po));
+
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    return_value = _iterfile(&path);
+#else
+    return_value = _posix_listdir(&path);
+#endif
+    path_cleanup(&path);
+    return return_value;
 }
 
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},
-    {"iterfile", (PyCFunction)iterfile, METH_VARARGS, NULL},
+    {"iterfile", (PyCFunction)iterfile, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL},
 };
 

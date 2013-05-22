@@ -800,7 +800,6 @@ iterfile (PyObject *self, PyObject *args, PyObject *kwargs)
 {
     path_t path;
     static char *keywords[] = {"path", NULL};
-    PyObject *return_value;
     FileIterator *iterator;
 
     memset(&path, 0, sizeof(path));
@@ -819,7 +818,6 @@ iterfile (PyObject *self, PyObject *args, PyObject *kwargs)
     if (iterator == NULL) {
         return NULL;
     }
-    Py_INCREF(iterator);
 
     iterator->handle = NULL;
     iterator->path = path;

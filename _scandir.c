@@ -23,49 +23,326 @@
 #define UNICODE_LENGTH PyUnicode_GET_SIZE
 #endif
 
-typedef struct {
-    BOOL got_unicode;
-    char *cpattern;
-    wchar_t *wpattern;
-} Pattern;
+#ifdef Py_CLEANUP_SUPPORTED
+#define PATH_CONVERTER_RESULT (Py_CLEANUP_SUPPORTED)
+#else
+#define PATH_CONVERTER_RESULT (1)
+#endif
+/*
+START OF CODE ADAPTED FROM POSIXMODULE.C
+*/
+#ifdef AT_FDCWD
+/*
+ * Why the (int) cast?  Solaris 10 defines AT_FDCWD as 0xffd19553 (-3041965);
+ * without the int cast, the value gets interpreted as uint (4291925331),
+ * which doesn't play nicely with all the initializer lines in this file that
+ * look like this:
+ *      int dir_fd = DEFAULT_DIR_FD;
+ */
+#define DEFAULT_DIR_FD (int)AT_FDCWD
+#else
+#define DEFAULT_DIR_FD (-100)
+#endif
+
+#ifdef MS_WINDOWS
+static int
+win32_warn_bytes_api()
+{
+    return PyErr_WarnEx(PyExc_DeprecationWarning,
+        "The Windows bytes API has been deprecated, "
+        "use Unicode filenames instead",
+        1);
+}
+#endif
 
 static int
-pattern_from_args(PyObject *args, Pattern *pattern, BOOL want_unicode)
+_fd_converter(PyObject *o, int *p, const char *allowed)
 {
-    pattern->cpattern = NULL;
-    pattern->wpattern = NULL;
-    if (PyArg_ParseTuple(args, "u:pattern_from_args", &pattern->wpattern)) {
-        pattern->got_unicode = TRUE;
-    } else {
-        pattern->got_unicode = FALSE;
+    int overflow;
+    long long_value = PyLong_AsLongAndOverflow(o, &overflow);
+    if (PyFloat_Check(o) ||
+        (long_value == -1 && !overflow && PyErr_Occurred())) {
         PyErr_Clear();
+        PyErr_Format(PyExc_TypeError,
+                        "argument should be %s, not %.200s",
+                        allowed, Py_TYPE(o)->tp_name);
+        return 0;
     }
-
-    if (want_unicode) {
-        if (pattern->got_unicode) {
-            return 0;
-        } else {
-            if (PyArg_ParseTuple(args, "et:pattern_from_args", &pattern->wpattern)) {
-        }
-    } else {
+    if (overflow > 0 || long_value > INT_MAX) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "signed integer is greater than maximum");
+        return 0;
     }
-
-
-
-        pattern->got_unicode = FALSE;
-        if (!PyArg_ParseTuple(args, "et:pattern_from_args",
-            Py_FileSystemDefaultEncoding, &pattern->cpattern)) {
-            return 1;
-        }
+    if (overflow < 0 || long_value < INT_MIN) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "signed integer is less than minimum");
+        return 0;
     }
-    if (want_unicode && !pattern->got_unicode) {
-
-    }
-    if (!want_unicode && pattern->got_unicode) {
-    }
-
-    return 0;
+    *p = (int)long_value;
+    return 1;
 }
+
+static int
+dir_fd_converter(PyObject *o, void *p)
+{
+    if (o == Py_None) {
+        *(int *)p = DEFAULT_DIR_FD;
+        return 1;
+    }
+    return _fd_converter(o, (int *)p, "integer");
+}
+/*
+ * A PyArg_ParseTuple "converter" function
+ * that handles filesystem paths in the manner
+ * preferred by the os module.
+ *
+ * path_converter accepts (Unicode) strings and their
+ * subclasses, and bytes and their subclasses.  What
+ * it does with the argument depends on the platform:
+ *
+ *   * On Windows, if we get a (Unicode) string we
+ *     extract the wchar_t * and return it; if we get
+ *     bytes we extract the char * and return that.
+ *
+ *   * On all other platforms, strings are encoded
+ *     to bytes using PyUnicode_FSConverter, then we
+ *     extract the char * from the bytes object and
+ *     return that.
+ *
+ * path_converter also optionally accepts signed
+ * integers (representing open file descriptors) instead
+ * of path strings.
+ *
+ * Input fields:
+ *   path.nullable
+ *     If nonzero, the path is permitted to be None.
+ *   path.allow_fd
+ *     If nonzero, the path is permitted to be a file handle
+ *     (a signed int) instead of a string.
+ *   path.function_name
+ *     If non-NULL, path_converter will use that as the name
+ *     of the function in error messages.
+ *     (If path.argument_name is NULL it omits the function name.)
+ *   path.argument_name
+ *     If non-NULL, path_converter will use that as the name
+ *     of the parameter in error messages.
+ *     (If path.argument_name is NULL it uses "path".)
+ *
+ * Output fields:
+ *   path.wide
+ *     Points to the path if it was expressed as Unicode
+ *     and was not encoded.  (Only used on Windows.)
+ *   path.narrow
+ *     Points to the path if it was expressed as bytes,
+ *     or it was Unicode and was encoded to bytes.
+ *   path.fd
+ *     Contains a file descriptor if path.accept_fd was true
+ *     and the caller provided a signed integer instead of any
+ *     sort of string.
+ *
+ *     WARNING: if your "path" parameter is optional, and is
+ *     unspecified, path_converter will never get called.
+ *     So if you set allow_fd, you *MUST* initialize path.fd = -1
+ *     yourself!
+ *   path.length
+ *     The length of the path in characters, if specified as
+ *     a string.
+ *   path.object
+ *     The original object passed in.
+ *   path.cleanup
+ *     For internal use only.  May point to a temporary object.
+ *     (Pay no attention to the man behind the curtain.)
+ *
+ *   At most one of path.wide or path.narrow will be non-NULL.
+ *   If path was None and path.nullable was set,
+ *     or if path was an integer and path.allow_fd was set,
+ *     both path.wide and path.narrow will be NULL
+ *     and path.length will be 0.
+ *
+ *   path_converter takes care to not write to the path_t
+ *   unless it's successful.  However it must reset the
+ *   "cleanup" field each time it's called.
+ *
+ * Use as follows:
+ *      path_t path;
+ *      memset(&path, 0, sizeof(path));
+ *      PyArg_ParseTuple(args, "O&", path_converter, &path);
+ *      // ... use values from path ...
+ *      path_cleanup(&path);
+ *
+ * (Note that if PyArg_Parse fails you don't need to call
+ * path_cleanup().  However it is safe to do so.)
+ */
+typedef struct {
+    const char *function_name;
+    const char *argument_name;
+    int nullable;
+    int allow_fd;
+    wchar_t *wide;
+    char *narrow;
+    int fd;
+    Py_ssize_t length;
+    PyObject *object;
+    PyObject *cleanup;
+} path_t;
+
+static void
+path_cleanup(path_t *path) {
+    if (path->cleanup) {
+        Py_DECREF(path->cleanup);
+        path->cleanup = NULL;
+    }
+}
+
+static int
+path_converter(PyObject *o, void *p) {
+    path_t *path = (path_t *)p;
+    PyObject *unicode, *bytes;
+    Py_ssize_t length;
+    char *narrow;
+
+#define FORMAT_EXCEPTION(exc, fmt) \
+    PyErr_Format(exc, "%s%s" fmt, \
+        path->function_name ? path->function_name : "", \
+        path->function_name ? ": "                : "", \
+        path->argument_name ? path->argument_name : "path")
+
+    /* Py_CLEANUP_SUPPORTED support */
+    if (o == NULL) {
+        path_cleanup(path);
+        return 1;
+    }
+
+    /* ensure it's always safe to call path_cleanup() */
+    path->cleanup = NULL;
+
+    if (o == Py_None) {
+        if (!path->nullable) {
+            FORMAT_EXCEPTION(PyExc_TypeError,
+                             "can't specify None for %s argument");
+            return 0;
+        }
+        path->wide = NULL;
+        path->narrow = NULL;
+        path->length = 0;
+        path->object = o;
+        path->fd = -1;
+        return 1;
+    }
+
+    unicode = PyUnicode_FromObject(o);
+    if (unicode) {
+#ifdef MS_WINDOWS
+        wchar_t *wide;
+        length = PyUnicode_GET_SIZE(unicode);
+        if (length > 32767) {
+            FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+            Py_DECREF(unicode);
+            return 0;
+        }
+
+        wide = PyUnicode_AsUnicode(unicode);
+        if (!wide) {
+            Py_DECREF(unicode);
+            return 0;
+        }
+
+        path->wide = wide;
+        path->narrow = NULL;
+        path->length = length;
+        path->object = o;
+        path->fd = -1;
+        path->cleanup = unicode;
+        return PATH_CONVERTER_RESULT;
+#else
+        int converted = PyUnicode_FSConverter(unicode, &bytes);
+        Py_DECREF(unicode);
+        if (!converted)
+            bytes = NULL;
+#endif
+    }
+    else {
+        PyErr_Clear();
+#if PY_MAJOR_VERSION >= 3
+        if (PyObject_CheckBuffer(o))
+            bytes = PyBytes_FromObject(o);
+        else
+            bytes = NULL;
+#else
+        if (PyString_Check(o)) {
+            bytes = o;
+            Py_INCREF(bytes);
+        }
+        else
+            bytes = NULL;
+#endif
+        if (!bytes) {
+            PyErr_Clear();
+            if (path->allow_fd) {
+                int fd;
+                int result = _fd_converter(o, &fd,
+                        "string, bytes or integer");
+                if (result) {
+                    path->wide = NULL;
+                    path->narrow = NULL;
+                    path->length = 0;
+                    path->object = o;
+                    path->fd = fd;
+                    return result;
+                }
+            }
+        }
+    }
+
+    if (!bytes) {
+        if (!PyErr_Occurred())
+            FORMAT_EXCEPTION(PyExc_TypeError, "illegal type for %s parameter");
+        return 0;
+    }
+
+#ifdef MS_WINDOWS
+    if (win32_warn_bytes_api()) {
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+#if PY_MAJOR_VERSION >= 3
+    length = PyBytes_GET_SIZE(bytes);
+#else
+    length = PyString_GET_SIZE(bytes);
+#endif
+#ifdef MS_WINDOWS
+    if (length > MAX_PATH) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+#if PY_MAJOR_VERSION >= 3
+    narrow = PyBytes_AS_STRING(bytes);
+#else
+    narrow = PyString_AS_STRING(bytes);
+#endif
+    if (length != strlen(narrow)) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "embedded NUL character in %s");
+        Py_DECREF(bytes);
+        return 0;
+    }
+
+    path->wide = NULL;
+    path->narrow = narrow;
+    path->length = length;
+    path->object = o;
+    path->fd = -1;
+    path->cleanup = bytes;
+    return PATH_CONVERTER_RESULT;
+}
+
+/*
+END OF CODE ADAPTED FROM POSIXMODULE.C
+*/
 
 #define PATTERN_LEN 1024
 typedef struct {

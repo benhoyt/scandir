@@ -348,7 +348,7 @@ END OF CODE ADAPTED FROM POSIXMODULE.C
 #define PATTERN_LEN 1024
 typedef struct {
 	PyObject_HEAD
-    wchar_t pattern[PATTERN_LEN];
+    path_t path;
     void *handle;
 } FileIterator;
 
@@ -489,7 +489,7 @@ HANDLE *p_handle;
     if (fi->handle == NULL) {
         p_handle = malloc(sizeof(HANDLE));
         Py_BEGIN_ALLOW_THREADS
-        *p_handle = FindFirstFileW(fi->pattern, &data);
+        *p_handle = FindFirstFileW(fi->path.wide, &data);
         Py_END_ALLOW_THREADS
 
         if (*p_handle == INVALID_HANDLE_VALUE) {
@@ -796,32 +796,12 @@ PyTypeObject FileIterator_Type = {
 };
 
 static PyObject*
-_iterfile (path_t *path)
-{
-FileIterator *iterator;
-
-    /*
-    Create and return a FileIterator object.
-
-    Initialise it with the pattern to iterate over and an empty handle, the latter indicating
-    to the iternext implementation that iteration has not yet started.
-    */
-    iterator = PyObject_New(FileIterator, &FileIterator_Type);
-    if (iterator == NULL) {
-        return NULL;
-    }
-    wcscpy(iterator->pattern, path->wide);
-    iterator->handle = NULL;
-
-    return (PyObject *)iterator;
-}
-
-static PyObject*
 iterfile (PyObject *self, PyObject *args, PyObject *kwargs)
 {
     path_t path;
     static char *keywords[] = {"path", NULL};
     PyObject *return_value;
+    FileIterator *iterator;
 
     memset(&path, 0, sizeof(path));
     path.function_name = "iterfile";
@@ -835,13 +815,15 @@ iterfile (PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-    return_value = _iterfile(&path);
-#else
-    return_value = _posix_listdir(&path);
-#endif
-    path_cleanup(&path);
-    return return_value;
+    iterator = PyObject_New(FileIterator, &FileIterator_Type);
+    if (iterator == NULL) {
+        return NULL;
+    }
+    Py_INCREF(iterator);
+
+    iterator->handle = NULL;
+    iterator->path = path;
+    return (PyObject *)iterator;
 }
 
 static PyMethodDef scandir_methods[] = {

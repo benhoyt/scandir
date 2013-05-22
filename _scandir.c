@@ -82,17 +82,7 @@ _fd_converter(PyObject *o, int *p, const char *allowed)
     return 1;
 }
 
-static int
-dir_fd_converter(PyObject *o, void *p)
-{
-    if (o == Py_None) {
-        *(int *)p = DEFAULT_DIR_FD;
-        return 1;
-    }
-    return _fd_converter(o, (int *)p, "integer");
-}
-/*
- * A PyArg_ParseTuple "converter" function
+/* A PyArg_ParseTuple "converter" function
  * that handles filesystem paths in the manner
  * preferred by the os module.
  *
@@ -485,7 +475,7 @@ HANDLE *p_handle;
     If the API indicates that there are no (or no more) files, raise
     a StopIteration exception.
     */
-    is_finished = FALSE;
+    is_finished = 0;
     if (fi->handle == NULL) {
         p_handle = malloc(sizeof(HANDLE));
         Py_BEGIN_ALLOW_THREADS
@@ -496,7 +486,7 @@ HANDLE *p_handle;
             if (GetLastError() != ERROR_FILE_NOT_FOUND) {
                 return PyErr_SetFromWindowsErr(GetLastError());
             }
-            is_finished = TRUE;
+            is_finished = 1;
         }
         fi->handle = (void *)p_handle;
     }
@@ -511,7 +501,7 @@ HANDLE *p_handle;
 			if (GetLastError() != ERROR_NO_MORE_FILES) {
 			    return PyErr_SetFromWindowsErr(GetLastError());
 			}
-            is_finished = TRUE;
+            is_finished = 1;
 		}
 	}
 
@@ -678,12 +668,12 @@ scandir_helper(PyObject *self, PyObject *args)
 static void
 fi_dealloc(FileIterator *iterator)
 {
-DIR *p_dir;
+DIR *dirp;
 
     if (iterator->handle != NULL) {
-        p_dir = (DIR *)iterator->handle;
+        dirp = (DIR *)iterator->handle;
         Py_BEGIN_ALLOW_THREADS
-        closedir(p_dir);
+        closedir(dirp);
         Py_END_ALLOW_THREADS
     }
 	PyObject_Del(iterator);
@@ -693,28 +683,30 @@ static PyObject *
 fi_iternext(PyObject *iterator)
 {
 FileIterator *fi = (FileIterator *)iterator;
-char *name = fi->narrow;
-DIR *p_dir;
-BOOL is_finished = FALSE;
+char *name = fi->path.narrow;
+DIR *dirp;
+struct dirent *ep;
+PyObject *v;
+int is_finished = 0;
 
-    is_finished = FALSE;
+    is_finished = 0;
     if (fi->handle == NULL) {
         Py_BEGIN_ALLOW_THREADS
-        p_dir = opendir(name);
+        dirp = opendir(name);
         Py_END_ALLOW_THREADS
-        if (p_dir == NULL) {
+        if (dirp == NULL) {
             return posix_error_with_allocated_filename(name);
         }
-        fi->handle = p_dir;
+        fi->handle = dirp;
     }
 
     errno = 0;
     Py_BEGIN_ALLOW_THREADS
-    ep = readdir(p_dir);
+    ep = readdir(dirp);
     Py_END_ALLOW_THREADS
     if (ep == NULL) {
         if (errno == 0) {
-            is_finished = TRUE;
+            is_finished = 1;
         } else {
             Py_BEGIN_ALLOW_THREADS
             closedir(dirp);
@@ -724,7 +716,7 @@ BOOL is_finished = FALSE;
     }
     v = FROM_STRING(ep->d_name, NAMLEN(ep));
     if (v == NULL) {
-        return NULL
+        return NULL;
     }
     if (PyUnicode_Check(fi->path.object)) {
         PyObject *w;
@@ -743,7 +735,7 @@ BOOL is_finished = FALSE;
     Py_DECREF(v);
 
     Py_BEGIN_ALLOW_THREADS
-    closedir(p_dir);
+    closedir(dirp);
     Py_END_ALLOW_THREADS
 
     if (is_finished) {

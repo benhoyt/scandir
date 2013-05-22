@@ -692,8 +692,8 @@ DIR *p_dir;
 static PyObject *
 fi_iternext(PyObject *iterator)
 {
-/*
 FileIterator *fi = (FileIterator *)iterator;
+char *name = fi->narrow;
 DIR *p_dir;
 BOOL is_finished = FALSE;
 
@@ -726,7 +726,7 @@ BOOL is_finished = FALSE;
     if (v == NULL) {
         return NULL
     }
-    if (arg_is_unicode) {
+    if (PyUnicode_Check(fi->path.object)) {
         PyObject *w;
 
         w = PyUnicode_FromEncodedObject(v,
@@ -752,8 +752,6 @@ BOOL is_finished = FALSE;
     }
 
     return Py_BuildValue("u#kk", v, ep->d_ino, ep->d_type);
-*/
-    return Py_None;
 }
 #endif
 

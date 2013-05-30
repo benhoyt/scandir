@@ -45,8 +45,9 @@ if sys.platform == 'win32':
         return names
 
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
+    file_system_encoding = sys.getfilesystemencoding()
     def os_listdir(path):
-        dir_p = scandir.opendir(path.encode(scandir.file_system_encoding))
+        dir_p = scandir.opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise scandir.posix_error(path)
         names = []

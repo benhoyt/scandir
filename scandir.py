@@ -14,7 +14,7 @@ from __future__ import division
 
 import collections
 import ctypes
-import fnmatch
+import cffi
 import os
 import stat
 import sys
@@ -230,52 +230,73 @@ if sys.platform == 'win32':
 
 # Linux, OS X, and BSD implementation
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
-    import ctypes.util
+    
+    dirent_h = """
+typedef uint64_t __ino_t;
+typedef int64_t __ino64_t;
 
-    DIR_p = ctypes.c_void_p
+struct dirent
+  {
+    __ino_t d_ino;
+    unsigned char d_type;
+    char d_name[256];
+    ...;
+  };
+  
+#define DT_UNKNOWN ...
+#define DT_FIFO ...
+#define DT_CHR ...
+#define DT_DIR ...
+#define DT_BLK ...
+#define DT_REG ...
+#define DT_LNK ...
+#define DT_SOCK ...
+#define DT_WHT ...
+
+typedef ... DIR;
+
+extern DIR *opendir (const char *__name);
+
+extern int closedir (DIR *__dirp);
+
+extern int readdir_r (DIR * __dirp,
+        struct dirent * __entry,
+        struct dirent ** __result);
+
+extern int scandir (const char * __dir,
+      struct dirent *** __namelist,
+      int (*__selector) (const struct dirent *),
+      int (*__cmp) (const struct dirent **,
+      const struct dirent **));
+
+    """
+    
+    ffi = cffi.FFI()
+    ffi.cdef(dirent_h)
+    libc = ffi.verify("#include <dirent.h>")
 
     # Rather annoying how the dirent struct is slightly different on each
     # platform. The only fields we care about are d_name and d_type.
-    class dirent(ctypes.Structure):
-        if sys.platform.startswith('linux'):
-            _fields_ = (
-                ('d_ino', ctypes.c_ulong),
-                ('d_off', ctypes.c_long),
-                ('d_reclen', ctypes.c_ushort),
-                ('d_type', ctypes.c_byte),
-                ('d_name', ctypes.c_char * 256),
-            )
-        else:
-            _fields_ = (
-                ('d_ino', ctypes.c_uint32),  # must be uint32, not ulong
-                ('d_reclen', ctypes.c_ushort),
-                ('d_type', ctypes.c_byte),
-                ('d_namlen', ctypes.c_byte),
-                ('d_name', ctypes.c_char * 256),
-            )
+    def dirent():
+        return ffi.new(dirent_p)
 
-    DT_UNKNOWN = 0
+    for attr in dir(libc):
+        if attr.startswith("DT_"):
+            globals()[attr] = getattr(libc, attr)
+    
+    dirent_p = ffi.typeof("struct dirent *")
+    dirent_pp = ffi.typeof("struct dirent **")
 
-    dirent_p = ctypes.POINTER(dirent)
-    dirent_pp = ctypes.POINTER(dirent_p)
-
-    libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
     opendir = libc.opendir
-    opendir.argtypes = [ctypes.c_char_p]
-    opendir.restype = DIR_p
 
     readdir_r = libc.readdir_r
-    readdir_r.argtypes = [DIR_p, dirent_p, dirent_pp]
-    readdir_r.restype = ctypes.c_int
 
     closedir = libc.closedir
-    closedir.argtypes = [DIR_p]
-    closedir.restype = ctypes.c_int
 
     file_system_encoding = sys.getfilesystemencoding()
 
     def posix_error(filename):
-        errno = ctypes.get_errno()
+        errno = ffi.errno
         exc = OSError(errno, os.strerror(errno))
         exc.filename = filename
         return exc
@@ -285,14 +306,15 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         if not dir_p:
             raise posix_error(path)
         try:
-            entry = dirent()
-            result = dirent_p()
+            entry = ffi.new(dirent_p)
+            result = ffi.new(dirent_pp)
             while True:
-                if readdir_r(dir_p, entry, result):
+                rc = readdir_r(dir_p, entry, result)
+                if rc:
                     raise posix_error(path)
-                if not result:
+                if not result[0]:
                     break
-                name = entry.d_name.decode(file_system_encoding)
+                name = ffi.string(entry.d_name).decode(file_system_encoding)
                 if name not in ('.', '..'):
                     scandir_dirent = Dirent(entry.d_ino, entry.d_type)
                     yield DirEntry(path, name, scandir_dirent, None)

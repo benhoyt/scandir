@@ -51,14 +51,14 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             raise scandir.posix_error(path)
         names = []
         try:
-            entry = scandir.dirent()
-            result = scandir.dirent_p()
+            entry = scandir.ffi.new(scandir.dirent_p)
+            result = scandir.ffi.new(scandir.dirent_pp)
             while True:
                 if scandir.readdir_r(dir_p, entry, result):
                     raise scandir.posix_error(path)
-                if not result:
+                if not result[0]:
                     break
-                name = entry.d_name.decode(scandir.file_system_encoding)
+                name = scandir.ffi.string(entry.d_name).decode(scandir.file_system_encoding)
                 if name not in ('.', '..'):
                     names.append(name)
         finally:

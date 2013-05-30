@@ -239,7 +239,7 @@ struct dirent
   {
     __ino_t d_ino;
     unsigned char d_type;
-    char d_name[256];
+    char d_name[...];
     ...;
   };
   

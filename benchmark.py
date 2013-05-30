@@ -45,20 +45,21 @@ if sys.platform == 'win32':
         return names
 
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
+    file_system_encoding = sys.getfilesystemencoding()
     def os_listdir(path):
-        dir_p = scandir.opendir(path.encode(scandir.file_system_encoding))
+        dir_p = scandir.opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise scandir.posix_error(path)
         names = []
         try:
-            entry = scandir.dirent()
-            result = scandir.dirent_p()
+            entry = scandir.ffi.new(scandir.dirent_p)
+            result = scandir.ffi.new(scandir.dirent_pp)
             while True:
                 if scandir.readdir_r(dir_p, entry, result):
                     raise scandir.posix_error(path)
-                if not result:
+                if not result[0]:
                     break
-                name = entry.d_name.decode(scandir.file_system_encoding)
+                name = scandir.ffi.string(entry.d_name).decode(scandir.file_system_encoding)
                 if name not in ('.', '..'):
                     names.append(name)
         finally:

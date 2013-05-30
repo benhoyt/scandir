@@ -12,8 +12,6 @@ the full license text.
 
 from __future__ import division
 
-import collections
-import ctypes
 import os
 import stat
 import sys

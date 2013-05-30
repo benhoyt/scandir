@@ -10,9 +10,7 @@ from __future__ import division
 
 import cffi
 import os
-import stat
 import sys
-import warnings
 
 from _scandir_common import DirEntry, Dirent
 
@@ -23,23 +21,6 @@ try:
     unicode
 except NameError:
     unicode = str
-
-_join = os.path.join
-_lstat = os.lstat
-_stat_result = os.stat_result
-
-DT_UNKNOWN = 0
-DT_FIFO = 1
-DT_CHR = 2
-DT_DIR = 4
-DT_BLK = 6
-DT_REG = 8
-DT_LNK = 10
-DT_SOCK = 12
-
-S_IFDIR = stat.S_IFDIR
-S_IFREG = stat.S_IFREG
-S_IFLNK = stat.S_IFLNK
 
 scandir = None
 

@@ -147,12 +147,9 @@ if sys.platform == 'win32':
         return exc
 
     def scandir(path='.', windows_wildcard='*.*'):
-        WIN32_FIND_DATAW = wintypes.WIN32_FIND_DATAW
-        byref = ctypes.byref
-
         # Call FindFirstFile and handle errors
-        data = WIN32_FIND_DATAW()
-        data_p = byref(data)
+        data = wintypes.WIN32_FIND_DATAW()
+        data_p = ctypes.byref(data)
         filename = join(path, windows_wildcard)
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
@@ -171,8 +168,8 @@ if sys.platform == 'win32':
                 if name not in ('.', '..'):
                     yield DirEntry(name, data)
 
-                data = WIN32_FIND_DATAW()
-                data_p = byref(data)
+                data = wintypes.WIN32_FIND_DATAW()
+                data_p = ctypes.byref(data)
                 success = FindNextFile(handle, data_p)
                 if not success:
                     error = ctypes.GetLastError()

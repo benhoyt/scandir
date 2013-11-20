@@ -100,6 +100,17 @@ class TestWalk(unittest.TestCase):
             else:
                 self.fail("Didn't follow symlink with followlinks=True")
 
+        # Test creating a directory and adding it to dirnames
+        sub3_path = os.path.join(walk_path, "SUB3")
+        all = []
+        for root, dirs, files in walk_func(walk_path):
+            all.append((root, dirs, files))
+            if 'SUB1' in dirs:
+                os.makedirs(sub3_path)
+                dirs.append('SUB3')
+        all.sort()
+        self.assertEqual(os.path.split(all[-1][0])[1], 'SUB3')
+
     def tearDown(self):
         # Tear everything down.  This is a decent use for bottom-up on
         # Windows, which doesn't have a recursive delete command.  The

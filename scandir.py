@@ -29,6 +29,47 @@ S_IFREG = stat.S_IFREG
 S_IFLNK = stat.S_IFLNK
 
 
+class GenericDirEntry(object):
+    __slots__ = ('name', 'dirent', '_lstat', '_path')
+
+    def __init__(self, path, name):
+        self._path = path
+        self.name = name
+        self.dirent = None
+        self._lstat = None
+
+    def lstat(self):
+        if self._lstat is None:
+            self._lstat = lstat(join(self._path, self.name))
+        return self._lstat
+
+    def isdir(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
+        return self._lstat.st_mode & 0o170000 == S_IFDIR
+
+    def isfile(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
+        return self._lstat.st_mode & 0o170000 == S_IFREG
+
+    def islink(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
+        return self._lstat.st_mode & 0o170000 == S_IFLNK
+
+    def __str__(self):
+        return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
+
+    __repr__ = __str__
+
+
 if sys.platform == 'win32':
     from ctypes import wintypes
 
@@ -96,8 +137,7 @@ if sys.platform == 'win32':
         return os.stat_result((st_mode, 0, 0, 0, 0, 0, st_size, st_atime,
                                st_mtime, st_ctime))
 
-    # DirEntry object optimized for Windows
-    class DirEntry(object):
+    class Win32DirEntry(object):
         __slots__ = ('name', 'dirent', '_lstat', '_find_data')
 
         def __init__(self, name, find_data):
@@ -159,7 +199,7 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    yield DirEntry(name, data)
+                    yield Win32DirEntry(name, data)
 
                 data = wintypes.WIN32_FIND_DATAW()
                 data_p = ctypes.byref(data)
@@ -223,8 +263,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
     file_system_encoding = sys.getfilesystemencoding()
 
-    # DirEntry object optimized for *nix systems
-    class DirEntry(object):
+    class PosixDirEntry(object):
         __slots__ = ('name', 'dirent', '_lstat', '_path')
 
         def __init__(self, path, name, dirent):
@@ -299,7 +338,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                     break
                 name = entry.d_name.decode(file_system_encoding)
                 if name not in ('.', '..'):
-                    yield DirEntry(path, name, entry)
+                    yield PosixDirEntry(path, name, entry)
         finally:
             if closedir(dir_p):
                 raise posix_error(path)
@@ -307,52 +346,12 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
 # Some other system -- no d_type or stat information
 else:
-    class DirEntry(object):
-        __slots__ = ('name', 'dirent', '_lstat', '_path')
-
-        def __init__(self, path, name):
-            self._path = path
-            self.name = name
-            self.dirent = None
-            self._lstat = None
-
-        def lstat(self):
-            if self._lstat is None:
-                self._lstat = lstat(join(self._path, self.name))
-            return self._lstat
-
-        def isdir(self):
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFDIR
-
-        def isfile(self):
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFREG
-
-        def islink(self):
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFLNK
-
-        def __str__(self):
-            return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
-
-        __repr__ = __str__
-
     def scandir(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
         for name in os.listdir(path):
-            yield DirEntry(path, name)
+            yield GenericDirEntry(path, name)
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
@@ -388,8 +387,9 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
         for dir_name in dir_names:
             entry = entries_by_name.get(dir_name)
             if entry is None:
-                # TODO ben: fix, as DirEntry() has changed
-                entry = TODO_DirEntry(top, dir_name, None, None)
+                # Only happens when caller creates a new directory and adds it
+                # to dir_names
+                entry = GenericDirEntry(top, dir_name)
             dirs.append(entry)
 
     # Recurse into sub-directories, following symbolic links if "followlinks"

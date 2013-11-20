@@ -7,7 +7,7 @@ import scandir
 
 walk_func = scandir.walk
 
-class WalkTests(unittest.TestCase):
+class TestWalk(unittest.TestCase):
     testfn = os.path.join(os.path.dirname(__file__), 'temp')
 
     def test_traversal(self):

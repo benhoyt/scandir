@@ -15,7 +15,7 @@ class TestScandir(unittest.TestCase):
                          [('file1.txt', False), ('file2.txt', False), ('subdir', True)])
 
     def test_dir_entry(self):
-        entries = {e.name: e for e in scandir.scandir(test_path)}
+        entries = dict((e.name, e) for e in scandir.scandir(test_path))
         e = entries['file1.txt']
         self.assertEquals([e.isdir(), e.isfile(), e.islink()], [False, True, False])
         e = entries['file2.txt']
@@ -45,4 +45,5 @@ class TestScandir(unittest.TestCase):
 
     def test_returns_iter(self):
         it = scandir.scandir(test_path)
-        it.next()
+        entry = next(it)
+        assert hasattr(entry, 'name')

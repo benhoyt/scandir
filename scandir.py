@@ -137,6 +137,9 @@ if sys.platform == 'win32':
         return exc
 
     def scandir(path='.', windows_wildcard='*.*'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         # Call FindFirstFile and handle errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
@@ -280,6 +283,9 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         return exc
 
     def scandir(path='.'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         dir_p = opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise posix_error(path)
@@ -342,12 +348,15 @@ else:
         __repr__ = __str__
 
     def scandir(path='.'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         for name in os.listdir(path):
             yield DirEntry(path, name)
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
-    """Just like os.walk(), but faster, as it uses scandir() internally."""
+    """Like os.walk(), but faster, as it uses scandir() internally."""
     # Determine which are files and which are directories
     dirs = []
     nondirs = []

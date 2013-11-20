@@ -12,22 +12,13 @@ the full license text.
 
 from __future__ import division
 
-import collections
 import ctypes
-import fnmatch
 import os
 import stat
 import sys
-import warnings
 
 __version__ = '0.2'
 __all__ = ['scandir', 'walk']
-
-# Python 3 support
-try:
-    unicode
-except NameError:
-    unicode = str
 
 # Shortcuts to these functions for speed and ease
 join = os.path.join
@@ -188,7 +179,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
     # Rather annoying how the dirent struct is slightly different on each
     # platform. The only fields we care about are d_name and d_type.
-    class dirent(ctypes.Structure):
+    class Dirent(ctypes.Structure):
         if sys.platform.startswith('linux'):
             _fields_ = (
                 ('d_ino', ctypes.c_ulong),
@@ -211,8 +202,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     DT_REG = 8
     DT_LNK = 10
 
-    dirent_p = ctypes.POINTER(dirent)
-    dirent_pp = ctypes.POINTER(dirent_p)
+    Dirent_p = ctypes.POINTER(Dirent)
+    Dirent_pp = ctypes.POINTER(Dirent_p)
 
     libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
     opendir = libc.opendir
@@ -220,7 +211,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     opendir.restype = DIR_p
 
     readdir_r = libc.readdir_r
-    readdir_r.argtypes = [DIR_p, dirent_p, dirent_pp]
+    readdir_r.argtypes = [DIR_p, Dirent_p, Dirent_pp]
     readdir_r.restype = ctypes.c_int
 
     closedir = libc.closedir
@@ -293,9 +284,9 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         if not dir_p:
             raise posix_error(path)
         try:
-            result = dirent_p()
+            result = Dirent_p()
             while True:
-                entry = dirent()
+                entry = Dirent()
                 if readdir_r(dir_p, entry, result):
                     raise posix_error(path)
                 if not result:

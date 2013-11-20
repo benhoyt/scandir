@@ -86,7 +86,7 @@ The `scandir()` function is the scandir module's main workhorse. It's defined
 as follows:
 
 ```python
-scandir(path='.') -> iterator of DirEntry objects
+scandir(path='.', windows_wildcard='*.*') -> iterator of DirEntry objects
 ```
 
 It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
@@ -100,6 +100,10 @@ order. Each DirEntry object has the following attributes and methods:
 * `isfile()`: like os.path.isfile(), but free on most systems (Linux, Windows, OS X)
 * `islink()`: like os.path.islink(), but free on most systems (Linux, Windows, OS X)
 * `lstat()`: like os.lstat(), but free on Windows
+
+Obviously `windows_wildcard` is only available on Windows. It allows Windows
+power users to pass a custom wildcard to FindFirstFile, which may avoid the
+need to use `fnmatch` on the resulting names.
 
 Here's a good usage pattern for `scandir`. This is in fact almost exactly how
 the faster `os.walk()` implementation uses it:

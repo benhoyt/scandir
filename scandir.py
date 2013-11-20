@@ -76,7 +76,6 @@ if sys.platform == 'win32':
 
     def filetime_to_time(filetime):
         """Convert Win32 FILETIME to time since Unix epoch in seconds."""
-        # TODO ben: doesn't seem to match os.stat() exactly
         total = filetime.dwHighDateTime << 32 | filetime.dwLowDateTime
         return total / 10000000 - SECONDS_BETWEEN_EPOCHS
 

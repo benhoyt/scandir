@@ -67,7 +67,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         return names
 
 else:
-    raise NotImplementedError
+    os_listdir = os.listdir
 
 def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """Identical to os.walk(), but use ctypes-based listdir() so benchmark

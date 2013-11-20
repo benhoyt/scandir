@@ -20,7 +20,7 @@ if sys.platform == 'win32':
     def os_listdir(path):
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = os.path.join(path, '*')
+        filename = os.path.join(path, '*.*')
         handle = scandir.FindFirstFile(filename, data_p)
         if handle == scandir.INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
@@ -51,8 +51,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             raise scandir.posix_error(path)
         names = []
         try:
-            entry = scandir.dirent()
-            result = scandir.dirent_p()
+            entry = scandir.Dirent()
+            result = scandir.Dirent_p()
             while True:
                 if scandir.readdir_r(dir_p, entry, result):
                     raise scandir.posix_error(path)

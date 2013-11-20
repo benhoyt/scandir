@@ -21,7 +21,7 @@ of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
 **In practice, removing all those extra system calls makes `os.walk()` about
-8-9 times as fast on Windows, and about 3-4 times as fast on Linux and Mac OS
+4-5 times as fast on Windows, and about 2-3 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. [See more benchmarks
 below.](#benchmarks)
 
@@ -46,8 +46,7 @@ but Python's `os` module isn't going away anytime soon. So we might as well
 speed it up and add small improvements where possible.
 
 **So I'd love it if you could help test scandir, report bugs, suggest
-improvements, or comment on the API.** And perhaps you'll see these speed-ups
-and API additions in Python 3.4 ... :-)
+improvements, or comment on the API.**
 
 
 Benchmarks
@@ -60,17 +59,13 @@ arguments as well as with the `-s` argument (which totals the directory size).
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.7 64 bit        8.2            13.8
-Windows XP 32 bit           2.7 32 bit
+Windows 7 64 bit            2.7 64 bit        3.7            3.4
+Windows XP 32 bit           2.7 32 bit        TODO
 
-Ubuntu 10.04 32 bit         2.7 32 bit        3.2            1.8
+Ubuntu 10.04 32 bit         2.7 32 bit        1.8            1.3
 
-Mac OS X 10.7.5             2.7 64 bit
+Mac OS X 10.7.5             2.7 64 bit        TODO
 ```
-
-These benchmarks are using the fast C version of scandir_helper, which is
-equivalent to os.listdir(), also written in C, except that it provides the
-file information along with the name.
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
@@ -129,13 +124,14 @@ Further reading
 * [Question on StackOverflow about why os.walk() is slow and pointers to fix it](http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder)
 * [Question on StackOverflow asking about iterating over a directory](http://stackoverflow.com/questions/4403598/list-files-in-a-folder-as-a-stream-to-begin-process-immediately)
 * [BetterWalk, my previous attempt at this, on which this code is based](https://github.com/benhoyt/betterwalk)
+* [Info about Win32 reparse points / symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
+
 
 To-do
 -----
 
-* Make _scandir.scandir_helper functions return real iterators instead of lists
-* Move building of DirEntry objects into C module
-* Fix tests on Python 3, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
+* Finish the C extension version (_scandir.c)
+* Get `scandir()` included in the Python 3.5 standard library! :-)
 
 
 Flames, comments, bug reports

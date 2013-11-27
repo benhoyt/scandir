@@ -94,12 +94,13 @@ It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
 order. Each DirEntry object has the following attributes and methods:
 
 * `name`: filename, relative to path (like that returned by os.listdir)
-* `dirent`: a dirent object or None on systems that don't support it (Windows);
-  the dirent object has `d_ino` and `d_type` attributes
-* `isdir()`: like os.path.isdir(), but free on most systems (Linux, Windows, OS X)
-* `isfile()`: like os.path.isfile(), but free on most systems (Linux, Windows, OS X)
-* `islink()`: like os.path.islink(), but free on most systems (Linux, Windows, OS X)
-* `lstat()`: like os.lstat(), but free on Windows
+* `is_dir()`: like os.path.isdir(), but requires no OS calls on most systems
+  (Linux, Windows, OS X)
+* `is_file()`: like os.path.isfile(), but requires no OS calls on most systems
+  (Linux, Windows, OS X)
+* `is_symlink()`: like os.path.islink(), but requires no OS calls on most
+  systems (Linux, Windows, OS X)
+* `lstat()`: like os.lstat(), but requires no OS calls on Windows
 
 Obviously `windows_wildcard` is only available on Windows. It allows Windows
 power users to pass a custom wildcard to FindFirstFile, which may avoid the
@@ -112,7 +113,7 @@ the faster `os.walk()` implementation uses it:
 dirs = []
 nondirs = []
 for entry in scandir(path):
-    if entry.isdir():
+    if entry.is_dir():
         dirs.append(entry)
     else:
         nondirs.append(entry)

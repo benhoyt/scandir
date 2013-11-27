@@ -28,6 +28,14 @@ S_IFDIR = stat.S_IFDIR
 S_IFREG = stat.S_IFREG
 S_IFLNK = stat.S_IFLNK
 
+# 'unicode' isn't defined on Python 3
+try:
+    unicode
+except NameError:
+    unicode = str
+
+_scandir = None
+
 
 class GenericDirEntry(object):
     __slots__ = ('name', '_lstat', '_path')
@@ -210,6 +218,42 @@ if sys.platform == 'win32':
             if not FindClose(handle):
                 raise win_error(ctypes.GetLastError(), path)
 
+    try:
+        import _scandir
+
+        scandir_helper = _scandir.scandir_helper
+
+        class Win32DirEntry(object):
+            __slots__ = ('name', '_lstat')
+
+            def __init__(self, name, lstat):
+                self.name = name
+                self._lstat = lstat
+
+            def lstat(self):
+                return self._lstat
+
+            def is_dir(self):
+                return self._lstat.st_mode & 0o170000 == S_IFDIR
+
+            def is_file(self):
+                return self._lstat.st_mode & 0o170000 == S_IFREG
+
+            def is_symlink(self):
+                return self._lstat.st_mode & 0o170000 == S_IFLNK
+
+            def __str__(self):
+                return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
+
+            __repr__ = __str__
+
+        def scandir(path='.'):
+            for name, stat in scandir_helper(unicode(path)):
+                yield Win32DirEntry(name, stat)
+
+    except ImportError:
+        pass
+
 
 # Linux, OS X, and BSD implementation
 elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
@@ -338,6 +382,18 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         finally:
             if closedir(dir_p):
                 raise posix_error(path)
+
+    try:
+        import _scandir
+
+        scandir_helper = _scandir.scandir_helper
+
+        def scandir(path='.'):
+            for name, d_type in scandir_helper(unicode(path)):
+                yield PosixDirEntry(path, name, d_type)
+
+    except ImportError:
+        pass
 
 
 # Some other system -- no d_type or stat information

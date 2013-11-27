@@ -21,7 +21,7 @@ of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
 **In practice, removing all those extra system calls makes `os.walk()` about
-4-5 times as fast on Windows, and about 2-3 times as fast on Linux and Mac OS
+8-9 times as fast on Windows, and about 2-3 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. [See more benchmarks
 below.](#benchmarks)
 
@@ -59,17 +59,27 @@ arguments as well as with the `-s` argument (which totals the directory size).
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.7 64 bit        3.7            3.4
+Windows 7 64 bit            2.7 64 bit        8.4            15.7
 Windows XP 32 bit           2.7 32 bit        TODO
 
-Ubuntu 10.04 32 bit         2.7 32 bit        1.8            1.3
+Ubuntu 10.04 32 bit         2.7 32 bit        TODO           TODO
 
 Mac OS X 10.7.5             2.7 64 bit        TODO
 ```
 
+All of the above tests were done using the version of scandir with the fast C
+`scandir_helper()` function.
+
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
 tree with a standardized size.
+
+Another quick benchmark I've done (on Windows 7 64-bit) is running Eli
+Bendersky's [pss](https://github.com/eliben/pss) source code searching tool
+across a fairly large code tree (4938 files, 598 dirs, 200 MB). Using pss out
+of the box with `os.walk()` on a not-found string takes 0.91 seconds. But
+after monkey-patching in `scandir.walk()` it takes only 0.34 seconds -- 2.7
+times as fast.
 
 
 The API

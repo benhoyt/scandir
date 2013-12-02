@@ -16,8 +16,7 @@ setup(
                      "files in a directory, and also exposes the extra information most OSes provide "
                      "while iterating files in a directory. Read more at the GitHub project page.",
     py_modules=['scandir'],
-# TODO: reinstate C extension module
-#    ext_modules=[Extension('_scandir', ['_scandir.c'])],
+    ext_modules=[Extension('_scandir', ['_scandir.c'])],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

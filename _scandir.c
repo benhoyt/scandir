@@ -234,7 +234,7 @@ static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
 {
     char *name = NULL;
-    PyObject *d, *v, *name_ino_type;
+    PyObject *d, *v, *name_type;
     DIR *dirp;
     struct dirent *ep;
     int arg_is_unicode = 1;

@@ -305,40 +305,60 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     file_system_encoding = sys.getfilesystemencoding()
 
     class PosixDirEntry(object):
-        __slots__ = ('name', '_d_type', '_lstat', '_path')
+        __slots__ = ('name', '_d_type', '_lstat', '_stat', '_path')
 
         def __init__(self, path, name, d_type):
             self._path = path
             self.name = name
             self._d_type = d_type
             self._lstat = None
+            self._stat = None
 
         def lstat(self):
             if self._lstat is None:
                 self._lstat = lstat(join(self._path, self.name))
             return self._lstat
 
+        def stat(self):
+            if self._stat is None:
+                self._stat = os.stat(join(self._path, self.name))
+            return self._stat
+
         # Ridiculous duplication between these is* functions -- helps a little
         # bit with os.walk() performance compared to calling another function.
         def is_dir(self):
             d_type = self._d_type
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_DIR
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFDIR
+            if d_type == DT_DIR:
+                return True
+            elif self.is_symlink():
+                try:
+                    self.stat()
+                except OSError:
+                    return False
+                return self._stat.st_mode & 0o170000 == S_IFDIR
+            else:
+                try:
+                    self.lstat()
+                except OSError:
+                    return False
+                return self._lstat.st_mode & 0o170000 == S_IFDIR
 
         def is_file(self):
             d_type = self._d_type
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_REG
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFREG
+            if d_type == DT_REG:
+                return True
+            elif self.is_symlink():
+                try:
+                    self.stat()
+                except OSError:
+                    return False
+                return self._stat.st_mode & 0o170000 == S_IFREG
+            else:
+                try:
+                    self.lstat()
+                except OSError:
+                    return False
+                return self._lstat.st_mode & 0o170000 == S_IFREG
 
         def is_symlink(self):
             d_type = self._d_type
@@ -406,8 +426,9 @@ else:
             yield GenericDirEntry(path, name)
 
 
-def walk(top, topdown=True, onerror=None, followlinks=False):
-    """Like os.walk(), but faster, as it uses scandir() internally."""
+def walk_entries(top, topdown=True, onerror=None, followlinks=False):
+    """Like os.walk(), but faster and it returns DirEntry objects. Uses
+    scandir internally"""
     # Determine which are files and which are directories
     dirs = []
     nondirs = []
@@ -424,33 +445,46 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going top down
     if topdown:
-        # Need to do some fancy footwork here as caller is allowed to modify
-        # dir_names, and we really want them to modify dirs (list of DirEntry
-        # objects) instead. Keep a mapping of entries keyed by name.
-        dir_names = []
-        entries_by_name = {}
-        for entry in dirs:
-            dir_names.append(entry.name)
-            entries_by_name[entry.name] = entry
-
-        yield top, dir_names, [e.name for e in nondirs]
-
-        dirs = []
-        for dir_name in dir_names:
-            entry = entries_by_name.get(dir_name)
-            if entry is None:
-                # Only happens when caller creates a new directory and adds it
-                # to dir_names
-                entry = GenericDirEntry(top, dir_name)
-            dirs.append(entry)
+        yield top, dirs, nondirs
 
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
         if followlinks or not entry.is_symlink():
             new_path = join(top, entry.name)
-            for x in walk(new_path, topdown, onerror, followlinks):
+            for x in walk_entries(new_path, topdown, onerror, followlinks):
                 yield x
 
-    # Yield before recursion if going bottom up
+    # Yield after recursion if going bottom up
     if not topdown:
-        yield top, [e.name for e in dirs], [e.name for e in nondirs]
+        yield top, dirs, nondirs
+
+
+def walk(top, topdown=True, onerror=None, followlinks=False):
+    """Like os.walk(), but faster, as it uses scandir() internally."""
+    for top, dirs, nondirs in walk_entries(top,
+                                           topdown,
+                                           onerror,
+                                           followlinks):
+        if topdown:
+            # Need to do some fancy footwork here as caller is allowed to modify
+            # dir_names, and we really want them to modify dirs (list of DirEntry
+            # objects) instead. Keep a mapping of entries keyed by name.
+            dir_names = []
+            entries_by_name = {}
+            for entry in dirs:
+                dir_names.append(entry.name)
+                entries_by_name[entry.name] = entry
+        else:
+            dir_names = [e.name for e in dirs]
+
+        yield top, dir_names, [e.name for e in nondirs]
+
+        if topdown:
+            dirs[:] = []
+            for dir_name in dir_names:
+                entry = entries_by_name.get(dir_name)
+                if entry is None:
+                    # Only happens when caller creates a new directory and adds it
+                    # to dir_names
+                    entry = GenericDirEntry(top, dir_name)
+                dirs.append(entry)

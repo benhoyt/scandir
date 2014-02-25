@@ -346,7 +346,6 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
         def is_file(self):
             d_type = self._d_type
-
             if d_type == DT_REG:
                 return True
             elif self.is_symlink():

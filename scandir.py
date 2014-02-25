@@ -426,8 +426,9 @@ else:
             yield GenericDirEntry(path, name)
 
 
-def walk(top, topdown=True, onerror=None, followlinks=False):
-    """Like os.walk(), but faster, as it uses scandir() internally."""
+def walk_entries(top, topdown=True, onerror=None, followlinks=False):
+    """Like os.walk(), but faster and it returns DirEntry objects. Uses 
+    scandir internally"""
     # Determine which are files and which are directories
     dirs = []
     nondirs = []
@@ -444,33 +445,45 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
 
     # Yield before recursion if going top down
     if topdown:
-        # Need to do some fancy footwork here as caller is allowed to modify
-        # dir_names, and we really want them to modify dirs (list of DirEntry
-        # objects) instead. Keep a mapping of entries keyed by name.
-        dir_names = []
-        entries_by_name = {}
-        for entry in dirs:
-            dir_names.append(entry.name)
-            entries_by_name[entry.name] = entry
-
-        yield top, dir_names, [e.name for e in nondirs]
-
-        dirs = []
-        for dir_name in dir_names:
-            entry = entries_by_name.get(dir_name)
-            if entry is None:
-                # Only happens when caller creates a new directory and adds it
-                # to dir_names
-                entry = GenericDirEntry(top, dir_name)
-            dirs.append(entry)
-
+        yield top, dirs, nondirs
+        
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
         if followlinks or not entry.is_symlink():
             new_path = join(top, entry.name)
-            for x in walk(new_path, topdown, onerror, followlinks):
+            for x in walk_entries(new_path, topdown, onerror, followlinks):
                 yield x
 
-    # Yield before recursion if going bottom up
+    # Yield after recursion if going bottom up
     if not topdown:
-        yield top, [e.name for e in dirs], [e.name for e in nondirs]
+        yield top, dirs, nondirs
+
+def walk(top, topdown=True, onerror=None, followlinks=False):
+    """Like os.walk(), but faster, as it uses scandir() internally."""
+    for top, dirs, nondirs in walk_entries(top, 
+                                           topdown, 
+                                           onerror, 
+                                           followlinks):
+        if topdown:
+            # Need to do some fancy footwork here as caller is allowed to modify
+            # dir_names, and we really want them to modify dirs (list of DirEntry
+            # objects) instead. Keep a mapping of entries keyed by name.
+            dir_names = []
+            entries_by_name = {}
+            for entry in dirs:
+                dir_names.append(entry.name)
+                entries_by_name[entry.name] = entry
+        else:
+            dir_names = [e.name for e in dirs]
+
+        yield top, dir_names, [e.name for e in nondirs]
+
+        if topdown:
+            dirs[:] = []
+            for dir_name in dir_names:
+                entry = entries_by_name.get(dir_name)
+                if entry is None:
+                    # Only happens when caller creates a new directory and adds it
+                    # to dir_names
+                    entry = GenericDirEntry(top, dir_name)
+                dirs.append(entry)

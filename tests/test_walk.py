@@ -45,7 +45,7 @@ class TestWalk(unittest.TestCase):
         has_symlink = hasattr(os, "symlink")
         if has_symlink:
             try:
-                os.symlink(os.path.abspath(t2_path), link_path, True)
+                os.symlink(os.path.abspath(t2_path), link_path)
                 sub2_tree = (sub2_path, ["link"], ["tmp3"])
             except NotImplementedError:
                 sub2_tree = (sub2_path, [], ["tmp3"])

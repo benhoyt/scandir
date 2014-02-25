@@ -407,7 +407,7 @@ else:
 
 
 def walk_entries(top, topdown=True, onerror=None, followlinks=False):
-    """Like os.walk(), but faster and it returns DirEntry objects. Uses 
+    """Like os.walk(), but faster and it returns DirEntry objects. Uses
     scandir internally"""
     # Determine which are files and which are directories
     dirs = []
@@ -426,7 +426,7 @@ def walk_entries(top, topdown=True, onerror=None, followlinks=False):
     # Yield before recursion if going top down
     if topdown:
         yield top, dirs, nondirs
-        
+
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
         if followlinks or not entry.is_symlink():
@@ -438,11 +438,12 @@ def walk_entries(top, topdown=True, onerror=None, followlinks=False):
     if not topdown:
         yield top, dirs, nondirs
 
+
 def walk(top, topdown=True, onerror=None, followlinks=False):
     """Like os.walk(), but faster, as it uses scandir() internally."""
-    for top, dirs, nondirs in walk_entries(top, 
-                                           topdown, 
-                                           onerror, 
+    for top, dirs, nondirs in walk_entries(top,
+                                           topdown,
+                                           onerror,
                                            followlinks):
         if topdown:
             # Need to do some fancy footwork here as caller is allowed to modify

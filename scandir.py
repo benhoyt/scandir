@@ -305,40 +305,60 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     file_system_encoding = sys.getfilesystemencoding()
 
     class PosixDirEntry(object):
-        __slots__ = ('name', '_d_type', '_lstat', '_path')
+        __slots__ = ('name', '_d_type', '_lstat', '_stat', '_path')
 
         def __init__(self, path, name, d_type):
             self._path = path
             self.name = name
             self._d_type = d_type
             self._lstat = None
+            self._stat = None
 
         def lstat(self):
             if self._lstat is None:
                 self._lstat = lstat(join(self._path, self.name))
             return self._lstat
+            
+        def stat(self):
+            if self._stat is None:
+                self._stat = os.stat(join(self._path, self.name))
+            return self._stat
 
         # Ridiculous duplication between these is* functions -- helps a little
         # bit with os.walk() performance compared to calling another function.
         def is_dir(self):
             d_type = self._d_type
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_DIR
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFDIR
+            if d_type == DT_DIR:
+                return True
+            elif self.is_symlink():
+                try:
+                    self.stat()
+                except OSError:
+                    return False
+                return self._stat.st_mode & 0o170000 == S_IFDIR
+            else:
+                try:
+                    self.lstat()
+                except OSError:
+                    return False
+                return self._lstat.st_mode & 0o170000 == S_IFDIR
 
         def is_file(self):
             d_type = self._d_type
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_REG
-            try:
-                self.lstat()
-            except OSError:
-                return False
-            return self._lstat.st_mode & 0o170000 == S_IFREG
+            if d_type == DT_REG:
+                return True
+            elif self.is_symlink():
+                try:
+                    self.stat()
+                except OSError:
+                    return False
+                return self._stat.st_mode & 0o170000 == S_IFREG
+            else:
+                try:
+                    self.lstat()
+                except OSError:
+                    return False
+                return self._lstat.st_mode & 0o170000 == S_IFREG
 
         def is_symlink(self):
             d_type = self._d_type

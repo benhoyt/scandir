@@ -318,7 +318,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             if self._lstat is None:
                 self._lstat = lstat(join(self._path, self.name))
             return self._lstat
-            
+
         def stat(self):
             if self._stat is None:
                 self._stat = os.stat(join(self._path, self.name))
@@ -336,15 +336,17 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 except OSError:
                     return False
                 return self._stat.st_mode & 0o170000 == S_IFDIR
-            else:
+            elif d_type == DT_UNKNOWN:
                 try:
                     self.lstat()
                 except OSError:
                     return False
                 return self._lstat.st_mode & 0o170000 == S_IFDIR
+            return False
 
         def is_file(self):
             d_type = self._d_type
+
             if d_type == DT_REG:
                 return True
             elif self.is_symlink():
@@ -353,12 +355,13 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 except OSError:
                     return False
                 return self._stat.st_mode & 0o170000 == S_IFREG
-            else:
+            elif d_type == DT_UNKNOWN:
                 try:
                     self.lstat()
                 except OSError:
                     return False
                 return self._lstat.st_mode & 0o170000 == S_IFREG
+            return False
 
         def is_symlink(self):
             d_type = self._d_type

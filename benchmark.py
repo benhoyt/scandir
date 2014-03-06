@@ -105,7 +105,7 @@ def create_tree(path, depth=DEPTH):
     for i in range(NUM_FILES):
         filename = os.path.join(path, 'file{0:03}.txt'.format(i))
         with open(filename, 'wb') as f:
-            f.write('foo')
+            f.write(b'foo')
     if depth <= 1:
         return
     for i in range(NUM_DIRS):

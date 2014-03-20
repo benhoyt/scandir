@@ -38,31 +38,41 @@ _scandir = None
 
 
 class GenericDirEntry(object):
-    __slots__ = ('name', '_lstat', '_path')
+    __slots__ = ('name', '_lstat', '_stat', '_path')
 
     def __init__(self, path, name):
         self._path = path
         self.name = name
         self._lstat = None
+        self._stat = None
 
     def lstat(self):
         if self._lstat is None:
             self._lstat = lstat(join(self._path, self.name))
         return self._lstat
+        
+    def stat(self):
+        if self._stat is None:
+            self._stat = os.stat(join(self._path, self.name))
+        return self._stat
 
     def is_dir(self):
+        if not self.is_symlink():
+            return self._lstat.st_mode & 0o170000 == S_IFDIR
         try:
-            self.lstat()
+            self.stat()
         except OSError:
             return False
-        return self._lstat.st_mode & 0o170000 == S_IFDIR
+        return self._stat.st_mode & 0o170000 == S_IFDIR
 
     def is_file(self):
+        if not self.is_symlink():
+            return self._lstat.st_mode & 0o170000 == S_IFREG
         try:
-            self.lstat()
+            self.stat()
         except OSError:
             return False
-        return self._lstat.st_mode & 0o170000 == S_IFREG
+        return self._stat.st_mode & 0o170000 == S_IFREG
 
     def is_symlink(self):
         try:

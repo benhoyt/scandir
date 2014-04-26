@@ -128,11 +128,17 @@ path_converter(PyObject *o, void *p) {
         path->cleanup = unicode;
         return PATH_CONVERTER_RESULT;
 #else
-        int converted = PyUnicode_FSConverter(unicode, &bytes);
         path->arg_is_wide = 1;
-        Py_DECREF(unicode);
-        if (!converted)
+        printf("#3\n");
+#if PY_MAJOR_VERSION >= 3
+        printf("#3a\n");
+        if (!PyUnicode_FSConverter(unicode, &bytes))
             bytes = NULL;
+#else
+        printf("#3b\n");
+        bytes = PyUnicode_AsEncodedString(unicode, "iso-8859-1", "surrogateescape");
+#endif
+        Py_DECREF(unicode);
 #endif
     }
     else {

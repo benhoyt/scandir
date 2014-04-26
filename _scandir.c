@@ -459,11 +459,11 @@ struct dirent *ep;
         */
         if (fi->handle == NULL) {
             Py_BEGIN_ALLOW_THREADS
-            fi->handle = (void *)opendir(fi->path);
+            fi->handle = (void *)opendir(fi->path.narrow);
             Py_END_ALLOW_THREADS
 
             if (fi->handle == NULL) {
-                return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path);
+                return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path.narrow);
             }
         }
 
@@ -477,7 +477,7 @@ struct dirent *ep;
         */
         if (ep == NULL) {
             if (errno != 0) {
-                return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path);
+                return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path.narrow);
             }
             break;
         }
@@ -614,30 +614,36 @@ iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
     }
 
    if (path.wide) {
-		wchar_t *p;
+		wchar_t *filepath;
 
-        p = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 10));
-		if (p == NULL)
+        filepath = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 2));
+		if (filepath == NULL)
             return PyErr_NoMemory();
-		wcscpy(p, path.wide);
-		if ((path.wide[path.length] != L"\\") && (path.wide[path.length] != L"/")) {
-	        wcscat(p, L"\\");
+		wcscpy(filepath, path.wide);
+		if ((path.wide[path.length] != L'\\') && (path.wide[path.length] != L'/')) {
+	        wcscat(filepath, L"/");
 		}
-        wcscat(p, L"*");
-		path.wide = p;
+#ifdef MS_WINDOWS
+        wcscat(filepath, L"*");
+#endif
+		path.wide = filepath;
         path.length = wcslen(path.wide);
     }
     if (path.narrow) {
-        char *new_narrow;
+        char *filepath;
 
-        path.length += strlen("*");
-        new_narrow = PyMem_Realloc(path.narrow, path.length);
-        if (new_narrow == NULL)
+        filepath = (char *)malloc(sizeof(char) * (path.length + 2));
+        if (filepath == NULL)
             return PyErr_NoMemory();
-        strcpy(new_narrow, path.narrow);
-        strcpy(new_narrow + path.length, "*");
-        PyMem_Free(path.narrow);
-        path.narrow = new_narrow;
+        strcpy(filepath, path.narrow);
+		if ((path.narrow[path.length] != '\\') && (path.narrow[path.length] != '/')) {
+	        strcat(filepath, "/");
+		}
+#ifdef MS_WINDOWS
+        strcat(filepath, "*");
+#endif
+		path.narrow = filepath;
+        path.length = strlen(path.narrow);
     }
     return _iterfile(path);
 }

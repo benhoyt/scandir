@@ -497,10 +497,10 @@ struct dirent *ep;
         return NULL;
     }
 
-    if (path.arg_is_wide) {
-        return PyBuildValue("UN", PyUnicode_DecodeFSDefault(ep->d_name), FROM_LONG(ep->d_type));
-    } else {
+    if (fi->path.arg_is_wide) {
         return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
+    } else {
+        return Py_BuildValue("yN", ep->d_name, FROM_LONG(ep->d_type));
     }
 }
 

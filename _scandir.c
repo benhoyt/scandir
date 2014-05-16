@@ -246,7 +246,14 @@ scandir_helper(PyObject *self, PyObject *args)
         PyErr_NoMemory();
         return NULL;
     }
+
     wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
+    if (len > 0) {
+        Py_UNICODE wch = wnamebuf[len-1];
+        if (wch != L'/' && wch != L'\\' && wch != L':')
+            wnamebuf[len++] = L'\\';
+        wcscpy(wnamebuf + len, L"*.*");
+    }
 
     iterator = _iterfile(wnamebuf);
     if (iterator == NULL) {

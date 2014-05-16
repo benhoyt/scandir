@@ -247,7 +247,7 @@ if sys.platform == 'win32':
 
             __repr__ = __str__
 
-        def scandir(path='.\\*'):
+        def scandir(path='.'):
             for name, stat in scandir_helper(unicode(path)):
                 yield Win32DirEntry(name, stat)
 

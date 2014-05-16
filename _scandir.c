@@ -27,12 +27,6 @@
 #define TO_CHAR PyString_AS_STRING
 #endif
 
-#ifdef Py_CLEANUP_SUPPORTED
-#define PATH_CONVERTER_RESULT (Py_CLEANUP_SUPPORTED)
-#else
-#define PATH_CONVERTER_RESULT (1)
-#endif
-
 #ifdef MS_WINDOWS
 
 static PyObject *
@@ -129,148 +123,136 @@ static PyStructSequence_Desc stat_result_desc = {
     10
 };
 
-/* Path conversion lifted directly from posixmodule.c:8ee2b73cda7a
+/* FileIterator support
 */
+typedef wchar_t* path_t;
 typedef struct {
-    const char *function_name;
-    const char *argument_name;
-    int nullable;
-    wchar_t *wide;
-    char *narrow;
-    Py_ssize_t length;
-    PyObject *object;
-    PyObject *cleanup;
-} path_t;
+    PyObject_HEAD
+    path_t path;
+    HANDLE *handle;
+} FileIterator;
+
+static PyObject *_iterfile(path_t);
 
 static void
-path_cleanup(path_t *path) {
-    if (path->cleanup) {
-        Py_CLEAR(path->cleanup);
+fi_dealloc(FileIterator *iterator)
+{
+HANDLE handle;
+
+    if (iterator->handle != NULL) {
+        handle = *((HANDLE *)iterator->handle);
+        if (handle != INVALID_HANDLE_VALUE) {
+            Py_BEGIN_ALLOW_THREADS
+            FindClose(handle);
+            Py_END_ALLOW_THREADS
+        }
+        free(iterator->handle);
     }
+    PyObject_Del(iterator);
 }
 
-static int
-path_converter(PyObject *o, void *p) {
-    path_t *path = (path_t *)p;
-    PyObject *unicode, *bytes;
-    Py_ssize_t length;
-    char *narrow;
+static PyObject *
+fi_iternext(PyObject *iterator)
+{
+PyObject *file_data;
+BOOL is_finished;
+WIN32_FIND_DATAW data;
+HANDLE *p_handle;
 
-#define FORMAT_EXCEPTION(exc, fmt) \
-    PyErr_Format(exc, "%s%s" fmt, \
-        path->function_name ? path->function_name : "", \
-        path->function_name ? ": "                : "", \
-        path->argument_name ? path->argument_name : "path")
+    FileIterator *fi = (FileIterator *)iterator;
+    memset(&data, 0, sizeof(data));
 
-    /* Py_CLEANUP_SUPPORTED support */
-    if (o == NULL) {
-        path_cleanup(path);
-        return 1;
-    }
+    /*
+    Put data into the iterator's data buffer, using the state of the
+    hFind handle to determine whether this is the first iteration or
+    a successive one.
 
-    /* ensure it's always safe to call path_cleanup() */
-    path->cleanup = NULL;
+    If the API indicates that there are no (or no more) files, raise
+    a StopIteration exception.
+    */
+    is_finished = 0;
+    if (fi->handle == NULL) {
+        p_handle = malloc(sizeof(HANDLE));
+        Py_BEGIN_ALLOW_THREADS
+        *p_handle = FindFirstFileW(fi->path, &data);
+        Py_END_ALLOW_THREADS
 
-    if (o == Py_None) {
-        if (!path->nullable) {
-            FORMAT_EXCEPTION(PyExc_TypeError,
-                             "can't specify None for %s argument");
-            return 0;
+        if (*p_handle == INVALID_HANDLE_VALUE) {
+            if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+                return PyErr_SetFromWindowsErr(GetLastError());
+            }
+            is_finished = 1;
         }
-        path->wide = NULL;
-        path->narrow = NULL;
-        path->length = 0;
-        path->object = o;
-        return 1;
-    }
-
-    unicode = PyUnicode_FromObject(o);
-    if (unicode) {
-#ifdef MS_WINDOWS
-        wchar_t *wide;
-
-        wide = PyUnicode_AsUnicodeAndSize(unicode, &length);
-        if (!wide) {
-            Py_DECREF(unicode);
-            return 0;
-        }
-        if (length > 32767) {
-            FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
-            Py_DECREF(unicode);
-            return 0;
-        }
-
-        path->wide = wide;
-        path->narrow = NULL;
-        path->length = length;
-        path->object = o;
-        path->cleanup = unicode;
-        return PATH_CONVERTER_RESULT;
-#else
-        int converted = PyUnicode_FSConverter(unicode, &bytes);
-        Py_DECREF(unicode);
-        if (!converted)
-            bytes = NULL;
-#endif
+        fi->handle = (void *)p_handle;
     }
     else {
-        PyErr_Clear();
-#if PY_MAJOR_VERSION >= 3
-        if (PyObject_CheckBuffer(o)) {
-            bytes = PyBytes_FromObject(o);
-        }
-#else
-        if (PyString_Check(o)) {
-            bytes = o;
-            Py_INCREF(bytes);
-        }
-#endif
-        else
-            bytes = NULL;
-        if (!bytes) {
-            PyErr_Clear();
+        BOOL ok;
+        p_handle = (HANDLE *)fi->handle;
+        Py_BEGIN_ALLOW_THREADS
+        ok = FindNextFileW(*p_handle, &data);
+        Py_END_ALLOW_THREADS
+
+        if (!ok) {
+            if (GetLastError() != ERROR_NO_MORE_FILES) {
+                return PyErr_SetFromWindowsErr(GetLastError());
+            }
+            is_finished = 1;
         }
     }
 
-    if (!bytes) {
-        if (!PyErr_Occurred())
-            FORMAT_EXCEPTION(PyExc_TypeError, "illegal type for %s parameter");
-        return 0;
+    if (is_finished) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
     }
 
-#ifdef MS_WINDOWS
-    if (win32_warn_bytes_api()) {
-        Py_DECREF(bytes);
-        return 0;
+    file_data = find_data_to_statresult(&data);
+    if (!file_data) {
+        return PyErr_SetFromWindowsErr(GetLastError());
     }
-#endif
-
-    length = BYTES_LENGTH(bytes);
-#ifdef MS_WINDOWS
-    if (length > MAX_PATH-1) {
-        FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
-        Py_DECREF(bytes);
-        return 0;
+    else {
+        return Py_BuildValue("u#O",
+                            data.cFileName, wcslen(data.cFileName),
+                            file_data);
     }
-#endif
-
-    narrow = TO_CHAR(bytes);
-    if (length != strlen(narrow)) {
-        FORMAT_EXCEPTION(PyExc_ValueError, "embedded NUL character in %s");
-        Py_DECREF(bytes);
-        return 0;
-    }
-
-    path->wide = NULL;
-    path->narrow = narrow;
-    path->length = length;
-    path->object = o;
-    path->cleanup = bytes;
-    return PATH_CONVERTER_RESULT;
 }
 
 static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
+{
+    Py_UNICODE *wnamebuf;
+    Py_ssize_t len;
+    PyObject *po;
+    PyObject *iterator;
+
+    if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
+        return NULL;
+
+    /* Overallocate for \\*.*\0 */
+    len = PyUnicode_GET_SIZE(po);
+    wnamebuf = malloc((len + 5) * sizeof(wchar_t));
+    if (!wnamebuf) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
+    if (len > 0) {
+        Py_UNICODE wch = wnamebuf[len-1];
+        if (wch != L'/' && wch != L'\\' && wch != L':')
+            wnamebuf[len++] = L'\\';
+        wcscpy(wnamebuf + len, L"*.*");
+    }
+
+    iterator = _iterfile(wnamebuf);
+    if (iterator == NULL) {
+        free(wnamebuf);
+        return NULL;
+    }
+
+    return iterator;
+}
+
+static PyObject *
+oldscandir_helper(PyObject *self, PyObject *args)
 {
     PyObject *d, *v;
     HANDLE hFindFile;
@@ -477,6 +459,56 @@ scandir_helper(PyObject *self, PyObject *args)
 }
 
 #endif
+
+PyTypeObject FileIterator_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "FileIterator",                        /* tp_name */
+    sizeof(FileIterator),                /* tp_basicsize */
+    0,                                    /* tp_itemsize */
+    /* methods */
+    (destructor)fi_dealloc,             /* tp_dealloc */
+    0,                                    /* tp_print */
+    0,                                    /* tp_getattr */
+    0,                                    /* tp_setattr */
+    0,                                    /* tp_compare */
+    0,                                    /* tp_repr */
+    0,                                    /* tp_as_number */
+    0,                                    /* tp_as_sequence */
+    0,                                    /* tp_as_mapping */
+    0,                                    /* tp_hash */
+    0,                                    /* tp_call */
+    0,                                    /* tp_str */
+    PyObject_GenericGetAttr,            /* tp_getattro */
+    0,                                    /* tp_setattro */
+    0,                                    /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                 /* tp_flags */
+    0,                                    /* tp_doc */
+    0,                                    /* tp_traverse */
+    0,                                    /* tp_clear */
+    0,                                    /* tp_richcompare */
+    0,                                    /* tp_weaklistoffset */
+    PyObject_SelfIter,                    /* tp_iter */
+    (iternextfunc)fi_iternext,            /* tp_iternext */
+    0,                                    /* tp_methods */
+    0,                                    /* tp_members */
+    0,                                    /* tp_getset */
+    0,                                    /* tp_base */
+    0,                                    /* tp_dict */
+    0,                                    /* tp_descr_get */
+    0,                                    /* tp_descr_set */
+};
+
+static PyObject*
+_iterfile(path_t path)
+{
+    FileIterator *iterator = PyObject_New(FileIterator, &FileIterator_Type);
+    if (iterator == NULL) {
+        return NULL;
+    }
+    iterator->handle = NULL;
+    iterator->path = path;
+    return (PyObject *)iterator;
+}
 
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},

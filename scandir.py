@@ -12,101 +12,67 @@ the full license text.
 
 from __future__ import division
 
-import collections
 import ctypes
-import fnmatch
 import os
 import stat
 import sys
-import warnings
 
-__version__ = '0.1'
+__version__ = '0.3'
 __all__ = ['scandir', 'walk']
 
-try:
-    unicode
-except NameError:
-    unicode = str
-
-_join = os.path.join
-_lstat = os.lstat
-_stat_result = os.stat_result
-
-DT_UNKNOWN = 0
-DT_FIFO = 1
-DT_CHR = 2
-DT_DIR = 4
-DT_BLK = 6
-DT_REG = 8
-DT_LNK = 10
-DT_SOCK = 12
+# Shortcuts to these functions for speed and ease
+join = os.path.join
+lstat = os.lstat
 
 S_IFDIR = stat.S_IFDIR
 S_IFREG = stat.S_IFREG
 S_IFLNK = stat.S_IFLNK
 
-Dirent = collections.namedtuple('Dirent', ['d_ino', 'd_type'])
+# 'unicode' isn't defined on Python 3
+try:
+    unicode
+except NameError:
+    unicode = str
 
-class DirEntry(object):
-    __slots__ = ('_path', 'name', 'dirent', '_lstat')
+_scandir = None
 
-    def __init__(self, path, name, dirent, lstat):
-        # TODO ben: make path absolute? Do this in scandir?
+
+class GenericDirEntry(object):
+    __slots__ = ('name', '_lstat', '_path')
+
+    def __init__(self, path, name):
         self._path = path
         self.name = name
-        self.dirent = dirent
-        self._lstat = lstat
+        self._lstat = None
 
     def lstat(self):
         if self._lstat is None:
-            self._lstat = _lstat(_join(self._path, self.name))
+            self._lstat = lstat(join(self._path, self.name))
         return self._lstat
 
-    # Ridiculous duplication between these is* functions -- helps a little bit
-    # with os.walk() performance compared to calling another function. Won't
-    # be an issue in C, but Python function calls are relatively expensive.
-    def isdir(self):
-        if self._lstat is None:
-            d_type = getattr(self.dirent, 'd_type', DT_UNKNOWN)
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_DIR
-            else:
-                try:
-                    self.lstat()
-                except OSError:
-                    return False
+    def is_dir(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
         return self._lstat.st_mode & 0o170000 == S_IFDIR
 
-    def isfile(self):
-        if self._lstat is None:
-            d_type = getattr(self.dirent, 'd_type', DT_UNKNOWN)
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_REG
-            else:
-                try:
-                    self.lstat()
-                except OSError:
-                    return False
+    def is_file(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
         return self._lstat.st_mode & 0o170000 == S_IFREG
 
-    def islink(self):
-        if self._lstat is None:
-            d_type = getattr(self.dirent, 'd_type', DT_UNKNOWN)
-            if d_type != DT_UNKNOWN:
-                return d_type == DT_LNK
-            else:
-                try:
-                    self.lstat()
-                except OSError:
-                    return False
+    def is_symlink(self):
+        try:
+            self.lstat()
+        except OSError:
+            return False
         return self._lstat.st_mode & 0o170000 == S_IFLNK
 
     def __str__(self):
-        return '<{0}: {1!r}{2}{3}>'.format(
-                self.__class__.__name__,
-                self.name,
-                ' dirent' if self.dirent else '',
-                ' stat' if self._lstat else '')
+        return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
 
     __repr__ = __str__
 
@@ -149,7 +115,6 @@ if sys.platform == 'win32':
 
     def filetime_to_time(filetime):
         """Convert Win32 FILETIME to time since Unix epoch in seconds."""
-        # TODO ben: doesn't seem to match os.stat() exactly
         total = filetime.dwHighDateTime << 32 | filetime.dwLowDateTime
         return total / 10000000 - SECONDS_BETWEEN_EPOCHS
 
@@ -173,14 +138,43 @@ if sys.platform == 'win32':
         st_atime = filetime_to_time(data.ftLastAccessTime)
         st_mtime = filetime_to_time(data.ftLastWriteTime)
         st_ctime = filetime_to_time(data.ftCreationTime)
-        # These are set to zero per CPython's posixmodule.c
-        st_ino = 0
-        st_dev = 0
-        st_nlink = 0
-        st_uid = 0
-        st_gid = 0
-        return _stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid,
-                             st_gid, st_size, st_atime, st_mtime, st_ctime))
+
+        # Some fields set to zero per CPython's posixmodule.c: st_ino, st_dev,
+        # st_nlink, st_uid, st_gid
+        return os.stat_result((st_mode, 0, 0, 0, 0, 0, st_size, st_atime,
+                               st_mtime, st_ctime))
+
+    class Win32DirEntry(object):
+        __slots__ = ('name', '_lstat', '_find_data')
+
+        def __init__(self, name, find_data):
+            self.name = name
+            self._lstat = None
+            self._find_data = find_data
+
+        def lstat(self):
+            if self._lstat is None:
+                # Lazily convert to stat object, because it's slow, and often
+                # we only need is_dir() etc
+                self._lstat = find_data_to_stat(self._find_data)
+            return self._lstat
+
+        def is_dir(self):
+            return (self._find_data.dwFileAttributes &
+                    FILE_ATTRIBUTE_DIRECTORY != 0)
+
+        def is_file(self):
+            return (self._find_data.dwFileAttributes &
+                    FILE_ATTRIBUTE_DIRECTORY == 0)
+
+        def is_symlink(self):
+            return (self._find_data.dwFileAttributes &
+                    FILE_ATTRIBUTE_REPARSE_POINT != 0)
+
+        def __str__(self):
+            return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
+
+        __repr__ = __str__
 
     def win_error(error, filename):
         exc = WindowsError(error, ctypes.FormatError(error))
@@ -188,10 +182,13 @@ if sys.platform == 'win32':
         return exc
 
     def scandir(path='.', windows_wildcard='*.*'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         # Call FindFirstFile and handle errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = _join(path, windows_wildcard)
+        filename = join(path, windows_wildcard)
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
@@ -207,8 +204,10 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    yield DirEntry(path, name, None, find_data_to_stat(data))
+                    yield Win32DirEntry(name, data)
 
+                data = wintypes.WIN32_FIND_DATAW()
+                data_p = ctypes.byref(data)
                 success = FindNextFile(handle, data_p)
                 if not success:
                     error = ctypes.GetLastError()
@@ -221,11 +220,39 @@ if sys.platform == 'win32':
 
     try:
         import _scandir
+
+        scandir_helper = _scandir.scandir_helper
+
+        class Win32DirEntry(object):
+            __slots__ = ('name', '_lstat')
+
+            def __init__(self, name, lstat):
+                self.name = name
+                self._lstat = lstat
+
+            def lstat(self):
+                return self._lstat
+
+            def is_dir(self):
+                return self._lstat.st_mode & 0o170000 == S_IFDIR
+
+            def is_file(self):
+                return self._lstat.st_mode & 0o170000 == S_IFREG
+
+            def is_symlink(self):
+                return self._lstat.st_mode & 0o170000 == S_IFLNK
+
+            def __str__(self):
+                return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
+
+            __repr__ = __str__
+
         def scandir(path='.'):
-            for name, st in _scandir.scandir_helper(unicode(path)):
-                yield DirEntry(path, name, None, st)
+            for name, stat in scandir_helper(unicode(path)):
+                yield Win32DirEntry(name, stat)
+
     except ImportError:
-        warnings.warn('Using slow Python version of scandir()')
+        pass
 
 
 # Linux, OS X, and BSD implementation
@@ -236,7 +263,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
     # Rather annoying how the dirent struct is slightly different on each
     # platform. The only fields we care about are d_name and d_type.
-    class dirent(ctypes.Structure):
+    class Dirent(ctypes.Structure):
         if sys.platform.startswith('linux'):
             _fields_ = (
                 ('d_ino', ctypes.c_ulong),
@@ -255,9 +282,12 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             )
 
     DT_UNKNOWN = 0
+    DT_DIR = 4
+    DT_REG = 8
+    DT_LNK = 10
 
-    dirent_p = ctypes.POINTER(dirent)
-    dirent_pp = ctypes.POINTER(dirent_p)
+    Dirent_p = ctypes.POINTER(Dirent)
+    Dirent_pp = ctypes.POINTER(Dirent_p)
 
     libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
     opendir = libc.opendir
@@ -265,7 +295,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     opendir.restype = DIR_p
 
     readdir_r = libc.readdir_r
-    readdir_r.argtypes = [DIR_p, dirent_p, dirent_pp]
+    readdir_r.argtypes = [DIR_p, Dirent_p, Dirent_pp]
     readdir_r.restype = ctypes.c_int
 
     closedir = libc.closedir
@@ -274,6 +304,57 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
     file_system_encoding = sys.getfilesystemencoding()
 
+    class PosixDirEntry(object):
+        __slots__ = ('name', '_d_type', '_lstat', '_path')
+
+        def __init__(self, path, name, d_type):
+            self._path = path
+            self.name = name
+            self._d_type = d_type
+            self._lstat = None
+
+        def lstat(self):
+            if self._lstat is None:
+                self._lstat = lstat(join(self._path, self.name))
+            return self._lstat
+
+        # Ridiculous duplication between these is* functions -- helps a little
+        # bit with os.walk() performance compared to calling another function.
+        def is_dir(self):
+            d_type = self._d_type
+            if d_type != DT_UNKNOWN:
+                return d_type == DT_DIR
+            try:
+                self.lstat()
+            except OSError:
+                return False
+            return self._lstat.st_mode & 0o170000 == S_IFDIR
+
+        def is_file(self):
+            d_type = self._d_type
+            if d_type != DT_UNKNOWN:
+                return d_type == DT_REG
+            try:
+                self.lstat()
+            except OSError:
+                return False
+            return self._lstat.st_mode & 0o170000 == S_IFREG
+
+        def is_symlink(self):
+            d_type = self._d_type
+            if d_type != DT_UNKNOWN:
+                return d_type == DT_LNK
+            try:
+                self.lstat()
+            except OSError:
+                return False
+            return self._lstat.st_mode & 0o170000 == S_IFLNK
+
+        def __str__(self):
+            return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
+
+        __repr__ = __str__
+
     def posix_error(filename):
         errno = ctypes.get_errno()
         exc = OSError(errno, os.strerror(errno))
@@ -281,50 +362,58 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         return exc
 
     def scandir(path='.'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         dir_p = opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise posix_error(path)
         try:
-            entry = dirent()
-            result = dirent_p()
+            result = Dirent_p()
             while True:
+                entry = Dirent()
                 if readdir_r(dir_p, entry, result):
                     raise posix_error(path)
                 if not result:
                     break
                 name = entry.d_name.decode(file_system_encoding)
                 if name not in ('.', '..'):
-                    scandir_dirent = Dirent(entry.d_ino, entry.d_type)
-                    yield DirEntry(path, name, scandir_dirent, None)
+                    yield PosixDirEntry(path, name, entry.d_type)
         finally:
             if closedir(dir_p):
                 raise posix_error(path)
 
     try:
         import _scandir
+
+        scandir_helper = _scandir.scandir_helper
+
         def scandir(path='.'):
-            for name, d_ino, d_type in _scandir.scandir_helper(path):
-                scandir_dirent = Dirent(d_ino, d_type)
-                yield DirEntry(path, name, scandir_dirent, None)
+            for name, d_type in scandir_helper(unicode(path)):
+                yield PosixDirEntry(path, name, d_type)
+
     except ImportError:
-        warnings.warn('Using slow Python version of scandir(), please build _scandir.c using setup.py')
+        pass
 
 
 # Some other system -- no d_type or stat information
 else:
     def scandir(path='.'):
+        """Like os.listdir(), but yield DirEntry objects instead of returning
+        a list of names.
+        """
         for name in os.listdir(path):
-            yield DirEntry(path, name, None, None)
+            yield GenericDirEntry(path, name)
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
-    """Just like os.walk(), but faster, as it uses scandir() internally."""
+    """Like os.walk(), but faster, as it uses scandir() internally."""
     # Determine which are files and which are directories
     dirs = []
     nondirs = []
     try:
         for entry in scandir(top):
-            if entry.isdir():
+            if entry.is_dir():
                 dirs.append(entry)
             else:
                 nondirs.append(entry)
@@ -350,13 +439,15 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
         for dir_name in dir_names:
             entry = entries_by_name.get(dir_name)
             if entry is None:
-                entry = DirEntry(top, dir_name, None, None)
+                # Only happens when caller creates a new directory and adds it
+                # to dir_names
+                entry = GenericDirEntry(top, dir_name)
             dirs.append(entry)
 
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
-        if followlinks or not entry.islink():
-            new_path = _join(top, entry.name)
+        if followlinks or not entry.is_symlink():
+            new_path = join(top, entry.name)
             for x in walk(new_path, topdown, onerror, followlinks):
                 yield x
 

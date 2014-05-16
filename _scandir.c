@@ -1,5 +1,7 @@
 // scandir C speedups
 //
+// TODO: this is a work in progress!
+//
 // There's a fair bit of PY_MAJOR_VERSION boilerplate to support both Python 2
 // and Python 3 -- the structure of this is taken from here:
 // http://docs.python.org/3.3/howto/cporting.html
@@ -232,7 +234,7 @@ static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
 {
     char *name = NULL;
-    PyObject *d, *v, *name_ino_type;
+    PyObject *d, *v, *name_type;
     DIR *dirp;
     struct dirent *ep;
     int arg_is_unicode = 1;
@@ -299,21 +301,21 @@ scandir_helper(PyObject *self, PyObject *args)
                 PyErr_Clear();
             }
         }
-        name_ino_type = Py_BuildValue("ONN", v, FROM_LONG(ep->d_ino), FROM_LONG(ep->d_type));
-        if (name_ino_type == NULL) {
+        name_type = Py_BuildValue("ON", v, FROM_LONG(ep->d_type));
+        if (name_type == NULL) {
             Py_DECREF(v);
             Py_DECREF(d);
             d = NULL;
             break;
         }
-        if (PyList_Append(d, name_ino_type) != 0) {
+        if (PyList_Append(d, name_type) != 0) {
             Py_DECREF(v);
             Py_DECREF(d);
-            Py_DECREF(name_ino_type);
+            Py_DECREF(name_type);
             d = NULL;
             break;
         }
-        Py_DECREF(name_ino_type);
+        Py_DECREF(name_type);
         Py_DECREF(v);
     }
     Py_BEGIN_ALLOW_THREADS

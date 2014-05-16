@@ -7,7 +7,7 @@ import scandir
 
 walk_func = scandir.walk
 
-class WalkTests(unittest.TestCase):
+class TestWalk(unittest.TestCase):
     testfn = os.path.join(os.path.dirname(__file__), 'temp')
 
     def test_traversal(self):
@@ -99,6 +99,17 @@ class WalkTests(unittest.TestCase):
                     break
             else:
                 self.fail("Didn't follow symlink with followlinks=True")
+
+        # Test creating a directory and adding it to dirnames
+        sub3_path = os.path.join(walk_path, "SUB3")
+        all = []
+        for root, dirs, files in walk_func(walk_path):
+            all.append((root, dirs, files))
+            if 'SUB1' in dirs:
+                os.makedirs(sub3_path)
+                dirs.append('SUB3')
+        all.sort()
+        self.assertEqual(os.path.split(all[-1][0])[1], 'SUB3')
 
     def tearDown(self):
         # Tear everything down.  This is a decent use for bottom-up on

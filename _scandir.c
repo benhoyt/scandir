@@ -171,33 +171,45 @@ HANDLE *p_handle;
     a StopIteration exception.
     */
     is_finished = 0;
-    if (fi->handle == NULL) {
-        p_handle = malloc(sizeof(HANDLE));
-        Py_BEGIN_ALLOW_THREADS
-        *p_handle = FindFirstFileW(fi->path, &data);
-        Py_END_ALLOW_THREADS
+    while (1) {
 
-        if (*p_handle == INVALID_HANDLE_VALUE) {
-            if (GetLastError() != ERROR_FILE_NOT_FOUND) {
-                return PyErr_SetFromWindowsErr(GetLastError());
-            }
-            is_finished = 1;
-        }
-        fi->handle = (void *)p_handle;
-    }
-    else {
-        BOOL ok;
-        p_handle = (HANDLE *)fi->handle;
-        Py_BEGIN_ALLOW_THREADS
-        ok = FindNextFileW(*p_handle, &data);
-        Py_END_ALLOW_THREADS
+        if (fi->handle == NULL) {
+            p_handle = malloc(sizeof(HANDLE));
+            Py_BEGIN_ALLOW_THREADS
+            *p_handle = FindFirstFileW(fi->path, &data);
+            Py_END_ALLOW_THREADS
 
-        if (!ok) {
-            if (GetLastError() != ERROR_NO_MORE_FILES) {
-                return PyErr_SetFromWindowsErr(GetLastError());
+            if (*p_handle == INVALID_HANDLE_VALUE) {
+                if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+                    return PyErr_SetFromWindowsErr(GetLastError());
+                }
+                is_finished = 1;
             }
-            is_finished = 1;
+            fi->handle = (void *)p_handle;
         }
+        else {
+            BOOL ok;
+            p_handle = (HANDLE *)fi->handle;
+            Py_BEGIN_ALLOW_THREADS
+            ok = FindNextFileW(*p_handle, &data);
+            Py_END_ALLOW_THREADS
+
+            if (!ok) {
+                if (GetLastError() != ERROR_NO_MORE_FILES) {
+                    return PyErr_SetFromWindowsErr(GetLastError());
+                }
+                is_finished = 1;
+            }
+        }
+        /* Only continue if we have a useful filename or we've run out of files
+        A useful filename is one which isn't the "." and ".." pseudo-directories
+        */
+        if ((is_finished == 1) ||
+            (wcscmp(data.cFileName, L".") != 0 &&
+             wcscmp(data.cFileName, L"..") != 0)) {
+            break;
+        }
+
     }
 
     if (is_finished) {
@@ -235,12 +247,6 @@ scandir_helper(PyObject *self, PyObject *args)
         return NULL;
     }
     wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
-    if (len > 0) {
-        Py_UNICODE wch = wnamebuf[len-1];
-        if (wch != L'/' && wch != L'\\' && wch != L':')
-            wnamebuf[len++] = L'\\';
-        wcscpy(wnamebuf + len, L"*.*");
-    }
 
     iterator = _iterfile(wnamebuf);
     if (iterator == NULL) {

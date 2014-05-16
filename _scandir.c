@@ -17,10 +17,20 @@
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
 #define FROM_STRING PyUnicode_FromStringAndSize
+#define BYTES_LENGTH PyBytes_GET_SIZE
+#define TO_CHAR PyBytes_AS_STRING
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
 #define FROM_STRING PyString_FromStringAndSize
+#define BYTES_LENGTH PyString_GET_SIZE
+#define TO_CHAR PyString_AS_STRING
+#endif
+
+#ifdef Py_CLEANUP_SUPPORTED
+#define PATH_CONVERTER_RESULT (Py_CLEANUP_SUPPORTED)
+#else
+#define PATH_CONVERTER_RESULT (1)
 #endif
 
 #ifdef MS_WINDOWS
@@ -118,6 +128,146 @@ static PyStructSequence_Desc stat_result_desc = {
     stat_result_fields,
     10
 };
+
+/* Path conversion lifted directly from posixmodule.c:8ee2b73cda7a
+*/
+typedef struct {
+    const char *function_name;
+    const char *argument_name;
+    int nullable;
+    wchar_t *wide;
+    char *narrow;
+    Py_ssize_t length;
+    PyObject *object;
+    PyObject *cleanup;
+} path_t;
+
+static void
+path_cleanup(path_t *path) {
+    if (path->cleanup) {
+        Py_CLEAR(path->cleanup);
+    }
+}
+
+static int
+path_converter(PyObject *o, void *p) {
+    path_t *path = (path_t *)p;
+    PyObject *unicode, *bytes;
+    Py_ssize_t length;
+    char *narrow;
+
+#define FORMAT_EXCEPTION(exc, fmt) \
+    PyErr_Format(exc, "%s%s" fmt, \
+        path->function_name ? path->function_name : "", \
+        path->function_name ? ": "                : "", \
+        path->argument_name ? path->argument_name : "path")
+
+    /* Py_CLEANUP_SUPPORTED support */
+    if (o == NULL) {
+        path_cleanup(path);
+        return 1;
+    }
+
+    /* ensure it's always safe to call path_cleanup() */
+    path->cleanup = NULL;
+
+    if (o == Py_None) {
+        if (!path->nullable) {
+            FORMAT_EXCEPTION(PyExc_TypeError,
+                             "can't specify None for %s argument");
+            return 0;
+        }
+        path->wide = NULL;
+        path->narrow = NULL;
+        path->length = 0;
+        path->object = o;
+        return 1;
+    }
+
+    unicode = PyUnicode_FromObject(o);
+    if (unicode) {
+#ifdef MS_WINDOWS
+        wchar_t *wide;
+
+        wide = PyUnicode_AsUnicodeAndSize(unicode, &length);
+        if (!wide) {
+            Py_DECREF(unicode);
+            return 0;
+        }
+        if (length > 32767) {
+            FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+            Py_DECREF(unicode);
+            return 0;
+        }
+
+        path->wide = wide;
+        path->narrow = NULL;
+        path->length = length;
+        path->object = o;
+        path->cleanup = unicode;
+        return PATH_CONVERTER_RESULT;
+#else
+        int converted = PyUnicode_FSConverter(unicode, &bytes);
+        Py_DECREF(unicode);
+        if (!converted)
+            bytes = NULL;
+#endif
+    }
+    else {
+        PyErr_Clear();
+#if PY_MAJOR_VERSION >= 3
+        if (PyObject_CheckBuffer(o)) {
+            bytes = PyBytes_FromObject(o);
+        }
+#else
+        if (PyString_Check(o)) {
+            bytes = o;
+            Py_INCREF(bytes);
+        }
+#endif
+        else
+            bytes = NULL;
+        if (!bytes) {
+            PyErr_Clear();
+        }
+    }
+
+    if (!bytes) {
+        if (!PyErr_Occurred())
+            FORMAT_EXCEPTION(PyExc_TypeError, "illegal type for %s parameter");
+        return 0;
+    }
+
+#ifdef MS_WINDOWS
+    if (win32_warn_bytes_api()) {
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+    length = BYTES_LENGTH(bytes);
+#ifdef MS_WINDOWS
+    if (length > MAX_PATH-1) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+    narrow = TO_CHAR(bytes);
+    if (length != strlen(narrow)) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "embedded NUL character in %s");
+        Py_DECREF(bytes);
+        return 0;
+    }
+
+    path->wide = NULL;
+    path->narrow = narrow;
+    path->length = length;
+    path->object = o;
+    path->cleanup = bytes;
+    return PATH_CONVERTER_RESULT;
+}
 
 static PyObject *
 scandir_helper(PyObject *self, PyObject *args)

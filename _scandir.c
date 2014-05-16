@@ -17,10 +17,14 @@
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
 #define FROM_STRING PyUnicode_FromStringAndSize
+#define BYTES_LENGTH PyBytes_GET_SIZE
+#define TO_CHAR PyBytes_AS_STRING
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
 #define FROM_STRING PyString_FromStringAndSize
+#define BYTES_LENGTH PyString_GET_SIZE
+#define TO_CHAR PyString_AS_STRING
 #endif
 
 #ifdef MS_WINDOWS
@@ -119,8 +123,149 @@ static PyStructSequence_Desc stat_result_desc = {
     10
 };
 
+/* FileIterator support
+*/
+typedef wchar_t* path_t;
+typedef struct {
+    PyObject_HEAD
+    path_t path;
+    HANDLE *handle;
+} FileIterator;
+
+static PyObject *_iterfile(path_t);
+
+static void
+fi_dealloc(FileIterator *iterator)
+{
+HANDLE handle;
+
+    if (iterator->handle != NULL) {
+        handle = *((HANDLE *)iterator->handle);
+        if (handle != INVALID_HANDLE_VALUE) {
+            Py_BEGIN_ALLOW_THREADS
+            FindClose(handle);
+            Py_END_ALLOW_THREADS
+        }
+        free(iterator->handle);
+    }
+    PyObject_Del(iterator);
+}
+
+static PyObject *
+fi_iternext(PyObject *iterator)
+{
+PyObject *file_data;
+BOOL is_finished;
+WIN32_FIND_DATAW data;
+HANDLE *p_handle;
+
+    FileIterator *fi = (FileIterator *)iterator;
+    memset(&data, 0, sizeof(data));
+
+    /*
+    Put data into the iterator's data buffer, using the state of the
+    hFind handle to determine whether this is the first iteration or
+    a successive one.
+
+    If the API indicates that there are no (or no more) files, raise
+    a StopIteration exception.
+    */
+    is_finished = 0;
+    while (1) {
+
+        if (fi->handle == NULL) {
+            p_handle = malloc(sizeof(HANDLE));
+            Py_BEGIN_ALLOW_THREADS
+            *p_handle = FindFirstFileW(fi->path, &data);
+            Py_END_ALLOW_THREADS
+
+            if (*p_handle == INVALID_HANDLE_VALUE) {
+                if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+                    return PyErr_SetFromWindowsErr(GetLastError());
+                }
+                is_finished = 1;
+            }
+            fi->handle = (void *)p_handle;
+        }
+        else {
+            BOOL ok;
+            p_handle = (HANDLE *)fi->handle;
+            Py_BEGIN_ALLOW_THREADS
+            ok = FindNextFileW(*p_handle, &data);
+            Py_END_ALLOW_THREADS
+
+            if (!ok) {
+                if (GetLastError() != ERROR_NO_MORE_FILES) {
+                    return PyErr_SetFromWindowsErr(GetLastError());
+                }
+                is_finished = 1;
+            }
+        }
+        /* Only continue if we have a useful filename or we've run out of files
+        A useful filename is one which isn't the "." and ".." pseudo-directories
+        */
+        if ((is_finished == 1) ||
+            (wcscmp(data.cFileName, L".") != 0 &&
+             wcscmp(data.cFileName, L"..") != 0)) {
+            break;
+        }
+
+    }
+
+    if (is_finished) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+
+    file_data = find_data_to_statresult(&data);
+    if (!file_data) {
+        return PyErr_SetFromWindowsErr(GetLastError());
+    }
+    else {
+        return Py_BuildValue("u#O",
+                            data.cFileName, wcslen(data.cFileName),
+                            file_data);
+    }
+}
+
 static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
+{
+    Py_UNICODE *wnamebuf;
+    Py_ssize_t len;
+    PyObject *po;
+    PyObject *iterator;
+
+    if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
+        return NULL;
+
+    /* Overallocate for \\*.*\0 */
+    len = PyUnicode_GET_SIZE(po);
+    wnamebuf = malloc((len + 5) * sizeof(wchar_t));
+    if (!wnamebuf) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
+    if (len > 0) {
+        Py_UNICODE wch = wnamebuf[len-1];
+        if (wch != L'/' && wch != L'\\' && wch != L':')
+            wnamebuf[len++] = L'\\';
+        wcscpy(wnamebuf + len, L"*.*");
+    }
+
+    iterator = _iterfile(wnamebuf);
+    if (iterator == NULL) {
+        free(wnamebuf);
+        return NULL;
+    }
+
+    return iterator;
+}
+
+static PyObject *
+oldscandir_helper(PyObject *self, PyObject *args)
 {
     PyObject *d, *v;
     HANDLE hFindFile;
@@ -327,6 +472,56 @@ scandir_helper(PyObject *self, PyObject *args)
 }
 
 #endif
+
+PyTypeObject FileIterator_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "FileIterator",                        /* tp_name */
+    sizeof(FileIterator),                /* tp_basicsize */
+    0,                                    /* tp_itemsize */
+    /* methods */
+    (destructor)fi_dealloc,             /* tp_dealloc */
+    0,                                    /* tp_print */
+    0,                                    /* tp_getattr */
+    0,                                    /* tp_setattr */
+    0,                                    /* tp_compare */
+    0,                                    /* tp_repr */
+    0,                                    /* tp_as_number */
+    0,                                    /* tp_as_sequence */
+    0,                                    /* tp_as_mapping */
+    0,                                    /* tp_hash */
+    0,                                    /* tp_call */
+    0,                                    /* tp_str */
+    PyObject_GenericGetAttr,            /* tp_getattro */
+    0,                                    /* tp_setattro */
+    0,                                    /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                 /* tp_flags */
+    0,                                    /* tp_doc */
+    0,                                    /* tp_traverse */
+    0,                                    /* tp_clear */
+    0,                                    /* tp_richcompare */
+    0,                                    /* tp_weaklistoffset */
+    PyObject_SelfIter,                    /* tp_iter */
+    (iternextfunc)fi_iternext,            /* tp_iternext */
+    0,                                    /* tp_methods */
+    0,                                    /* tp_members */
+    0,                                    /* tp_getset */
+    0,                                    /* tp_base */
+    0,                                    /* tp_dict */
+    0,                                    /* tp_descr_get */
+    0,                                    /* tp_descr_set */
+};
+
+static PyObject*
+_iterfile(path_t path)
+{
+    FileIterator *iterator = PyObject_New(FileIterator, &FileIterator_Type);
+    if (iterator == NULL) {
+        return NULL;
+    }
+    iterator->handle = NULL;
+    iterator->path = path;
+    return (PyObject *)iterator;
+}
 
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},

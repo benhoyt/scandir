@@ -1,13 +1,11 @@
 
-2012-11-19 version 0.6
+2013-11-21 version 0.2
 
-* Added fields keyword arg to iterdir_stat() API, per post on python-ideas
-  mailing list.
-* Added pattern keyword arg for fnmatch-style matching (to make use of
-  FindFirst/Next wildcard matching).
-* Other fixes and improvements.
+* Define DirEntry differently on different platforms for performance.
+* Added tests for scandir and fix a few regressions.
+* Mark _scandir.c as "work in progress" for now.
 
 
-2012-11-13 version 0.5
+2013-05-13 version 0.1
 
-* Initial upload to GitHub
+* Initial upload to GitHub (copied from my BetterWalk repo)

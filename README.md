@@ -21,7 +21,7 @@ of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
 **In practice, removing all those extra system calls makes `os.walk()` about
-8-9 times as fast on Windows, and about 3-4 times as fast on Linux and Mac OS
+8-9 times as fast on Windows, and about 2-3 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. [See more benchmarks
 below.](#benchmarks)
 
@@ -46,8 +46,7 @@ but Python's `os` module isn't going away anytime soon. So we might as well
 speed it up and add small improvements where possible.
 
 **So I'd love it if you could help test scandir, report bugs, suggest
-improvements, or comment on the API.** And perhaps you'll see these speed-ups
-and API additions in Python 3.4 ... :-)
+improvements, or comment on the API.**
 
 
 Benchmarks
@@ -60,21 +59,27 @@ arguments as well as with the `-s` argument (which totals the directory size).
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.7 64 bit        8.2            13.8
-Windows XP 32 bit           2.7 32 bit
+Windows 7 64 bit            2.7 64 bit        8.4            15.7
+Windows XP 32 bit           2.7 32 bit        TODO
 
-Ubuntu 10.04 32 bit         2.7 32 bit        3.2            1.8
+Ubuntu 10.04 32 bit         2.7 32 bit        TODO           TODO
 
-Mac OS X 10.7.5             2.7 64 bit
+Mac OS X 10.7.5             2.7 64 bit        TODO
 ```
 
-These benchmarks are using the fast C version of scandir_helper, which is
-equivalent to os.listdir(), also written in C, except that it provides the
-file information along with the name.
+All of the above tests were done using the version of scandir with the fast C
+`scandir_helper()` function.
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
 tree with a standardized size.
+
+Another quick benchmark I've done (on Windows 7 64-bit) is running Eli
+Bendersky's [pss](https://github.com/eliben/pss) source code searching tool
+across a fairly large code tree (4938 files, 598 dirs, 200 MB). Using pss out
+of the box with `os.walk()` on a not-found string takes 0.91 seconds. But
+after monkey-patching in `scandir.walk()` it takes only 0.34 seconds -- 2.7
+times as fast.
 
 
 The API
@@ -91,7 +96,7 @@ The `scandir()` function is the scandir module's main workhorse. It's defined
 as follows:
 
 ```python
-scandir(path='.') -> iterator of DirEntry objects
+scandir(path='.', windows_wildcard='*.*') -> iterator of DirEntry objects
 ```
 
 It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
@@ -99,12 +104,17 @@ It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
 order. Each DirEntry object has the following attributes and methods:
 
 * `name`: filename, relative to path (like that returned by os.listdir)
-* `dirent`: a dirent object or None on systems that don't support it (Windows);
-  the dirent object has `d_ino` and `d_type` attributes
-* `isdir()`: like os.path.isdir(), but free on most systems (Linux, Windows, OS X)
-* `isfile()`: like os.path.isfile(), but free on most systems (Linux, Windows, OS X)
-* `islink()`: like os.path.islink(), but free on most systems (Linux, Windows, OS X)
-* `lstat()`: like os.lstat(), but free on Windows
+* `is_dir()`: like os.path.isdir(), but requires no OS calls on most systems
+  (Linux, Windows, OS X)
+* `is_file()`: like os.path.isfile(), but requires no OS calls on most systems
+  (Linux, Windows, OS X)
+* `is_symlink()`: like os.path.islink(), but requires no OS calls on most
+  systems (Linux, Windows, OS X)
+* `lstat()`: like os.lstat(), but requires no OS calls on Windows
+
+Obviously `windows_wildcard` is only available on Windows. It allows Windows
+power users to pass a custom wildcard to FindFirstFile, which may avoid the
+need to use `fnmatch` on the resulting names.
 
 Here's a good usage pattern for `scandir`. This is in fact almost exactly how
 the faster `os.walk()` implementation uses it:
@@ -113,7 +123,7 @@ the faster `os.walk()` implementation uses it:
 dirs = []
 nondirs = []
 for entry in scandir(path):
-    if entry.isdir():
+    if entry.is_dir():
         dirs.append(entry)
     else:
         nondirs.append(entry)
@@ -129,13 +139,14 @@ Further reading
 * [Question on StackOverflow about why os.walk() is slow and pointers to fix it](http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder)
 * [Question on StackOverflow asking about iterating over a directory](http://stackoverflow.com/questions/4403598/list-files-in-a-folder-as-a-stream-to-begin-process-immediately)
 * [BetterWalk, my previous attempt at this, on which this code is based](https://github.com/benhoyt/betterwalk)
+* [Info about Win32 reparse points / symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
+
 
 To-do
 -----
 
-* Make _scandir.scandir_helper functions return real iterators instead of lists
-* Move building of DirEntry objects into C module
-* Fix tests on Python 3, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
+* Finish the C extension version (_scandir.c)
+* Get `scandir()` included in the Python 3.5 standard library! :-)
 
 
 Flames, comments, bug reports

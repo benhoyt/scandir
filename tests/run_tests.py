@@ -13,7 +13,7 @@ def main():
     sys.path.insert(0, os.path.join(test_dir, '..'))
 
     suite = unittest.defaultTestLoader.loadTestsFromNames(test_names)
-    result = unittest.TextTestRunner().run(suite)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(1 if (result.errors or result.failures) else 0)
 
 if __name__ == '__main__':

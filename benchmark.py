@@ -20,7 +20,7 @@ if sys.platform == 'win32':
     def os_listdir(path):
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = os.path.join(path, '*')
+        filename = os.path.join(path, '*.*')
         handle = scandir.FindFirstFile(filename, data_p)
         if handle == scandir.INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
@@ -51,8 +51,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
             raise scandir.posix_error(path)
         names = []
         try:
-            entry = scandir.dirent()
-            result = scandir.dirent_p()
+            entry = scandir.Dirent()
+            result = scandir.Dirent_p()
             while True:
                 if scandir.readdir_r(dir_p, entry, result):
                     raise scandir.posix_error(path)
@@ -67,7 +67,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         return names
 
 else:
-    raise NotImplementedError
+    os_listdir = os.listdir
 
 def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """Identical to os.walk(), but use ctypes-based listdir() so benchmark
@@ -105,7 +105,7 @@ def create_tree(path, depth=DEPTH):
     for i in range(NUM_FILES):
         filename = os.path.join(path, 'file{0:03}.txt'.format(i))
         with open(filename, 'wb') as f:
-            f.write('foo')
+            f.write(b'foo')
     if depth <= 1:
         return
     for i in range(NUM_DIRS):
@@ -117,7 +117,7 @@ def get_tree_size(path):
     size = 0
     try:
         for entry in scandir.scandir(path):
-            if entry.isdir():
+            if entry.is_dir():
                 size += get_tree_size(os.path.join(path, entry.name))
             else:
                 size += entry.lstat().st_size
@@ -200,6 +200,11 @@ using it instead of creating a tree.
     if options.real_os_walk:
         global os_walk
         os_walk = os.walk
+
+    if scandir._scandir:
+        print 'Using fast C version of scandir'
+    else:
+        print 'Using slower ctypes version of scandir'
 
     benchmark(tree_dir, get_size=options.size)
 

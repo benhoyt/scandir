@@ -28,6 +28,22 @@
 #endif
 
 #ifdef MS_WINDOWS
+typedef wchar_t* path_t;
+typedef HANDLE handle_t;
+#else
+typedef char* path_t;
+typedef DIR handle_t;
+#endif
+
+typedef struct {
+    PyObject_HEAD
+    path_t path;
+    handle_t handle;
+} FileIterator;
+
+static PyObject *_iterfile(path_t);
+
+#ifdef MS_WINDOWS
 
 static PyObject *
 win32_error_unicode(char* function, Py_UNICODE* filename)
@@ -125,41 +141,24 @@ static PyStructSequence_Desc stat_result_desc = {
 
 /* FileIterator support
 */
-typedef wchar_t* path_t;
-typedef struct {
-    PyObject_HEAD
-    path_t path;
-    HANDLE *handle;
-} FileIterator;
-
-static PyObject *_iterfile(path_t);
-
 static void
-fi_dealloc(FileIterator *iterator)
+_fi_close(handle_t handle)
 {
-HANDLE handle;
-
-    if (iterator->handle != NULL) {
-        handle = *((HANDLE *)iterator->handle);
-        if (handle != INVALID_HANDLE_VALUE) {
-            Py_BEGIN_ALLOW_THREADS
-            FindClose(handle);
-            Py_END_ALLOW_THREADS
-        }
-        free(iterator->handle);
+    if (handle != INVALID_HANDLE_VALUE) {
+        Py_BEGIN_ALLOW_THREADS
+        FindClose(handle);
+        Py_END_ALLOW_THREADS
     }
-    PyObject_Del(iterator);
 }
 
 static PyObject *
-fi_iternext(PyObject *iterator)
+_fi_next(FileIterator *fi)
 {
 PyObject *file_data;
 BOOL is_finished;
 WIN32_FIND_DATAW data;
-HANDLE *p_handle;
+handle_t *p_handle;
 
-    FileIterator *fi = (FileIterator *)iterator;
     memset(&data, 0, sizeof(data));
 
     /*
@@ -174,7 +173,7 @@ HANDLE *p_handle;
     while (1) {
 
         if (fi->handle == NULL) {
-            p_handle = malloc(sizeof(HANDLE));
+            p_handle = malloc(sizeof(handle_t));
             Py_BEGIN_ALLOW_THREADS
             *p_handle = FindFirstFileW(fi->path, &data);
             Py_END_ALLOW_THREADS
@@ -185,11 +184,11 @@ HANDLE *p_handle;
                 }
                 is_finished = 1;
             }
-            fi->handle = (void *)p_handle;
+            fi->handle = (handle_t *)p_handle;
         }
         else {
             BOOL ok;
-            p_handle = (HANDLE *)fi->handle;
+            p_handle = (handle_t *)fi->handle;
             Py_BEGIN_ALLOW_THREADS
             ok = FindNextFileW(*p_handle, &data);
             Py_END_ALLOW_THREADS
@@ -201,6 +200,7 @@ HANDLE *p_handle;
                 is_finished = 1;
             }
         }
+
         /* Only continue if we have a useful filename or we've run out of files
         A useful filename is one which isn't the "." and ".." pseudo-directories
         */
@@ -264,104 +264,6 @@ scandir_helper(PyObject *self, PyObject *args)
     return iterator;
 }
 
-static PyObject *
-oldscandir_helper(PyObject *self, PyObject *args)
-{
-    PyObject *d, *v;
-    HANDLE hFindFile;
-    BOOL result;
-    WIN32_FIND_DATAW wFileData;
-    Py_UNICODE *wnamebuf;
-    Py_ssize_t len;
-    PyObject *po;
-    PyObject *name_stat;
-
-    if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
-        return NULL;
-
-    /* Overallocate for \\*.*\0 */
-    len = PyUnicode_GET_SIZE(po);
-    wnamebuf = malloc((len + 5) * sizeof(wchar_t));
-    if (!wnamebuf) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
-    if (len > 0) {
-        Py_UNICODE wch = wnamebuf[len-1];
-        if (wch != L'/' && wch != L'\\' && wch != L':')
-            wnamebuf[len++] = L'\\';
-        wcscpy(wnamebuf + len, L"*.*");
-    }
-    if ((d = PyList_New(0)) == NULL) {
-        free(wnamebuf);
-        return NULL;
-    }
-    Py_BEGIN_ALLOW_THREADS
-    hFindFile = FindFirstFileW(wnamebuf, &wFileData);
-    Py_END_ALLOW_THREADS
-    if (hFindFile == INVALID_HANDLE_VALUE) {
-        int error = GetLastError();
-        if (error == ERROR_FILE_NOT_FOUND) {
-            free(wnamebuf);
-            return d;
-        }
-        Py_DECREF(d);
-        win32_error_unicode("FindFirstFileW", wnamebuf);
-        free(wnamebuf);
-        return NULL;
-    }
-    do {
-        /* Skip over . and .. */
-        if (wcscmp(wFileData.cFileName, L".") != 0 &&
-            wcscmp(wFileData.cFileName, L"..") != 0) {
-            v = PyUnicode_FromUnicode(wFileData.cFileName, wcslen(wFileData.cFileName));
-            if (v == NULL) {
-                Py_DECREF(d);
-                d = NULL;
-                break;
-            }
-            name_stat = Py_BuildValue("ON", v, find_data_to_statresult(&wFileData));
-            if (name_stat == NULL) {
-                Py_DECREF(v);
-                Py_DECREF(d);
-                d = NULL;
-                break;
-            }
-            if (PyList_Append(d, name_stat) != 0) {
-                Py_DECREF(v);
-                Py_DECREF(d);
-                Py_DECREF(name_stat);
-                d = NULL;
-                break;
-            }
-            Py_DECREF(name_stat);
-            Py_DECREF(v);
-        }
-        Py_BEGIN_ALLOW_THREADS
-        result = FindNextFileW(hFindFile, &wFileData);
-        Py_END_ALLOW_THREADS
-        /* FindNextFile sets error to ERROR_NO_MORE_FILES if
-           it got to the end of the directory. */
-        if (!result && GetLastError() != ERROR_NO_MORE_FILES) {
-            Py_DECREF(d);
-            win32_error_unicode("FindNextFileW", wnamebuf);
-            FindClose(hFindFile);
-            free(wnamebuf);
-            return NULL;
-        }
-    } while (result == TRUE);
-
-    if (FindClose(hFindFile) == FALSE) {
-        Py_DECREF(d);
-        win32_error_unicode("FindClose", wnamebuf);
-        free(wnamebuf);
-        return NULL;
-    }
-    free(wnamebuf);
-    return d;
-}
-
 #else  // Linux / OS X
 
 #include <dirent.h>
@@ -375,13 +277,91 @@ posix_error_with_allocated_filename(char* name)
     return rc;
 }
 
+/* FileIterator support
+*/
+static PyObject *_iterfile(path_t);
+
+static void
+_fi_close(handle_t handle)
+{
+    Py_BEGIN_ALLOW_THREADS
+    closedir(handle);
+    Py_END_ALLOW_THREADS
+}
+
+static PyObject *
+_fi_next(FileIterator *fi)
+{
+PyObject *file_data;
+BOOL is_finished;
+handle_t *p_handle;
+struct dirent *ep;
+
+//PyObject *d, *v, *name_type;
+
+
+    /*
+    Put data into the iterator's data buffer, using the state of the
+    hFind handle to determine whether this is the first iteration or
+    a successive one.
+
+    If the API indicates that there are no (or no more) files, raise
+    a StopIteration exception.
+    */
+    is_finished = 0;
+    while (1) {
+
+        if (fi->handle == NULL) {
+            p_handle = malloc(sizeof(handle_t));
+
+            Py_BEGIN_ALLOW_THREADS
+            *p_handle = opendir(fi->path);
+            Py_END_ALLOW_THREADS
+
+            if (p_handle == NULL) {
+                return posix_error_with_allocated_filename(fi->path);
+            }
+            fi->handle = p_handle;
+        }
+        else {
+        }
+            errno = 0;
+            p_handle = fi->handle;
+            Py_BEGIN_ALLOW_THREADS
+            ep = readdir(p_handle);
+            Py_END_ALLOW_THREADS
+
+            if (ep == NULL) {
+                if (errno != 0) {
+                    return posix_error_with_allocated_filename(fi->path);
+                }
+                is_finished = 1;
+            }
+        }
+
+        /* Only continue if we have a useful filename or we've run out of files
+        A useful filename is one which isn't the "." and ".." pseudo-directories
+        */
+        if ((is_finished == 1) ||
+            (strcmp(ep->d_name, '.') != 0 &&
+            strcmp(ep->d_name, ".") != 0)) {
+            break;
+        }
+    }
+
+    if (is_finished) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+
+    return Py_BuildValue("ON", v, FROM_LONG(ep->d_type));
+}
+
 static PyObject *
 scandir_helper(PyObject *self, PyObject *args)
 {
-    char *name = NULL;
+    path_t *name = NULL;
     PyObject *d, *v, *name_type;
-    DIR *dirp;
-    struct dirent *ep;
     int arg_is_unicode = 1;
 
     errno = 0;
@@ -391,87 +371,47 @@ scandir_helper(PyObject *self, PyObject *args)
     }
     if (!PyArg_ParseTuple(args, "et:scandir_helper", Py_FileSystemDefaultEncoding, &name))
         return NULL;
-    Py_BEGIN_ALLOW_THREADS
-    dirp = opendir(name);
-    Py_END_ALLOW_THREADS
-    if (dirp == NULL) {
-        return posix_error_with_allocated_filename(name);
-    }
-    if ((d = PyList_New(0)) == NULL) {
-        Py_BEGIN_ALLOW_THREADS
-        closedir(dirp);
-        Py_END_ALLOW_THREADS
-        PyMem_Free(name);
+
+    iterator = _iterfile(name);
+    if (iterator == NULL) {
+        free(name);
         return NULL;
     }
-    for (;;) {
-        errno = 0;
-        Py_BEGIN_ALLOW_THREADS
-        ep = readdir(dirp);
-        Py_END_ALLOW_THREADS
-        if (ep == NULL) {
-            if (errno == 0) {
-                break;
-            } else {
-                Py_BEGIN_ALLOW_THREADS
-                closedir(dirp);
-                Py_END_ALLOW_THREADS
-                Py_DECREF(d);
-                return posix_error_with_allocated_filename(name);
-            }
-        }
-        if (ep->d_name[0] == '.' &&
-            (NAMLEN(ep) == 1 ||
-             (ep->d_name[1] == '.' && NAMLEN(ep) == 2)))
-            continue;
-        v = FROM_STRING(ep->d_name, NAMLEN(ep));
-        if (v == NULL) {
-            Py_DECREF(d);
-            d = NULL;
-            break;
-        }
-        if (arg_is_unicode) {
-            PyObject *w;
 
-            w = PyUnicode_FromEncodedObject(v,
-                                            Py_FileSystemDefaultEncoding,
-                                            "strict");
-            if (w != NULL) {
-                Py_DECREF(v);
-                v = w;
-            }
-            else {
-                /* fall back to the original byte string, as
-                   discussed in patch #683592 */
-                PyErr_Clear();
-            }
-        }
-        name_type = Py_BuildValue("ON", v, FROM_LONG(ep->d_type));
-        if (name_type == NULL) {
-            Py_DECREF(v);
-            Py_DECREF(d);
-            d = NULL;
-            break;
-        }
-        if (PyList_Append(d, name_type) != 0) {
-            Py_DECREF(v);
-            Py_DECREF(d);
-            Py_DECREF(name_type);
-            d = NULL;
-            break;
-        }
-        Py_DECREF(name_type);
-        Py_DECREF(v);
-    }
-    Py_BEGIN_ALLOW_THREADS
-    closedir(dirp);
-    Py_END_ALLOW_THREADS
-    PyMem_Free(name);
-
-    return d;
+    return iterator;
 }
 
 #endif
+
+static void
+fi_dealloc(PyObject *iterator)
+{
+FileIterator *fi;
+
+    fi = (FileIterator *)iterator;
+    if (fi != NULL) {
+        if (fi->handle != NULL) {
+            _fi_close(fi->handle);
+            free(fi->handle);
+        }
+        PyObject_Del(iterator);
+    }
+}
+
+static PyObject *
+fi_iternext(PyObject *iterator)
+{
+FileIterator *fi;
+
+    /*
+    There's scope here for refactoring things like the check
+    for dot and double-dot directories and possibly converting
+    the stat result. For now those, we'll just leave it simple.
+    */
+    fi = (FileIterator *)iterator;
+    return _fi_next(fi);
+}
+
 
 PyTypeObject FileIterator_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)

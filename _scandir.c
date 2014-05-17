@@ -269,14 +269,6 @@ scandir_helper(PyObject *self, PyObject *args)
 #include <dirent.h>
 #define NAMLEN(dirent) strlen((dirent)->d_name)
 
-static PyObject *
-posix_error_with_allocated_filename(char* name)
-{
-    PyObject *rc = PyErr_SetFromErrnoWithFilename(PyExc_OSError, name);
-    PyMem_Free(name);
-    return rc;
-}
-
 /* FileIterator support
 */
 static PyObject *_iterfile(path_t);
@@ -292,12 +284,9 @@ _fi_close(handle_t handle)
 static PyObject *
 _fi_next(FileIterator *fi)
 {
-PyObject *file_data;
 BOOL is_finished;
 handle_t *p_handle;
 struct dirent *ep;
-
-//PyObject *d, *v, *name_type;
 
 
     /*
@@ -319,7 +308,7 @@ struct dirent *ep;
             Py_END_ALLOW_THREADS
 
             if (p_handle == NULL) {
-                return posix_error_with_allocated_filename(fi->path);
+                return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path);
             }
             fi->handle = p_handle;
         }
@@ -333,7 +322,7 @@ struct dirent *ep;
 
             if (ep == NULL) {
                 if (errno != 0) {
-                    return posix_error_with_allocated_filename(fi->path);
+                    return PyErr_SetFromErrnoWithFilename(PyExc_OSError, fi->path);
                 }
                 is_finished = 1;
             }
@@ -343,8 +332,8 @@ struct dirent *ep;
         A useful filename is one which isn't the "." and ".." pseudo-directories
         */
         if ((is_finished == 1) ||
-            (strcmp(ep->d_name, '.') != 0 &&
-            strcmp(ep->d_name, ".") != 0)) {
+            (strcmp(ep->d_name, ".") != 0 &&
+            strcmp(ep->d_name, "..") != 0)) {
             break;
         }
     }
@@ -393,6 +382,9 @@ FileIterator *fi;
         if (fi->handle != NULL) {
             _fi_close(fi->handle);
             free(fi->handle);
+        }
+        if (fi->path != NULL) {
+            free(fi->path);
         }
         PyObject_Del(iterator);
     }

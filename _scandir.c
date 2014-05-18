@@ -38,6 +38,8 @@ typedef char* path_t;
 typedef struct {
     PyObject_HEAD
     path_t path;
+    /* handle will be a HANDLE on Windows, and a DIR type on Posix
+    */
     void* handle;
 } FileIterator;
 
@@ -161,7 +163,7 @@ _fi_next(FileIterator* fi)
 PyObject *file_data;
 BOOL is_finished;
 WIN32_FIND_DATAW data;
-HANDLE p_handle;
+HANDLE *p_handle;
 
     memset(&data, 0, sizeof(data));
 
@@ -204,11 +206,14 @@ HANDLE p_handle;
             }
         }
 
+        if (is_finished == 1) {
+            break;
+        }
+
         /* Only continue if we have a useful filename or we've run out of files
         A useful filename is one which isn't the "." and ".." pseudo-directories
         */
-        if ((is_finished == 1) ||
-            (wcscmp(data.cFileName, L".") != 0 &&
+        if ((wcscmp(data.cFileName, L".") != 0 &&
              wcscmp(data.cFileName, L"..") != 0)) {
             break;
         }

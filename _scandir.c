@@ -193,21 +193,16 @@ HANDLE *p_handle;
             fi->handle = (void *)p_handle;
         }
         else {
-            BOOL ok;
             Py_BEGIN_ALLOW_THREADS
-            ok = FindNextFileW(*((HANDLE *)fi->handle), &data);
+            is_finished = !FindNextFileW(*((HANDLE *)fi->handle), &data);
             Py_END_ALLOW_THREADS
 
-            if (!ok) {
+            if (is_finished) {
                 if (GetLastError() != ERROR_NO_MORE_FILES) {
                     return PyErr_SetFromWindowsErr(GetLastError());
                 }
-                is_finished = 1;
+                break;
             }
-        }
-
-        if (is_finished == 1) {
-            break;
         }
 
         /* Only continue if we have a useful filename or we've run out of files

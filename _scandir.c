@@ -18,22 +18,160 @@
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
 #define FROM_LONG PyLong_FromLong
-#define FROM_STRING PyUnicode_FromStringAndSize
 #define BYTES_LENGTH PyBytes_GET_SIZE
 #define TO_CHAR PyBytes_AS_STRING
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
-#define FROM_STRING PyString_FromStringAndSize
 #define BYTES_LENGTH PyString_GET_SIZE
 #define TO_CHAR PyString_AS_STRING
 #endif
 
+typedef struct {
+    const char *function_name;
+    const char *argument_name;
+    int nullable;
+    int allow_fd;
+    wchar_t *wide;
+    char *narrow;
+    int fd;
+    Py_ssize_t length;
+    PyObject *object;
+    PyObject *cleanup;
+} path_t;
+
+static void
+path_cleanup(path_t *path) {
+    if (path->cleanup) {
+        Py_CLEAR(path->cleanup);
+    }
+}
+
 #ifdef MS_WINDOWS
-typedef wchar_t* path_t;
-#else
-typedef char* path_t;
+static int
+win32_warn_bytes_api()
+{
+    return PyErr_WarnEx(PyExc_DeprecationWarning,
+        "The Windows bytes API has been deprecated, "
+        "use Unicode filenames instead",
+        1);
+}
 #endif
+
+static int
+path_converter(PyObject *o, void *p) {
+    path_t *path = (path_t *)p;
+    PyObject *unicode, *bytes;
+    Py_ssize_t length;
+    char *narrow;
+
+#define FORMAT_EXCEPTION(exc, fmt) \
+    PyErr_Format(exc, "%s%s" fmt, \
+        path->function_name ? path->function_name : "", \
+        path->function_name ? ": "                : "", \
+        path->argument_name ? path->argument_name : "path")
+
+    /* Py_CLEANUP_SUPPORTED support */
+    if (o == NULL) {
+        path_cleanup(path);
+        return 1;
+    }
+
+    /* ensure it's always safe to call path_cleanup() */
+    path->cleanup = NULL;
+
+    if (o == Py_None) {
+        if (!path->nullable) {
+            FORMAT_EXCEPTION(PyExc_TypeError,
+                             "can't specify None for %s argument");
+            return 0;
+        }
+        path->wide = NULL;
+        path->narrow = NULL;
+        path->length = 0;
+        path->object = o;
+        path->fd = -1;
+        return 1;
+    }
+
+    unicode = PyUnicode_FromEncodedObject(o, Py_FileSystemDefaultEncoding, "strict");
+    if (unicode) {
+#ifdef MS_WINDOWS
+        wchar_t *wide;
+
+        wide = PyUnicode_AsUnicodeAndSize(unicode, &length);
+        if (!wide) {
+            Py_DECREF(unicode);
+            return 0;
+        }
+        if (length > 32767) {
+            FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+            Py_DECREF(unicode);
+            return 0;
+        }
+
+        path->wide = wide;
+        path->narrow = NULL;
+        path->length = length;
+        path->object = o;
+        path->fd = -1;
+        path->cleanup = unicode;
+        return Py_CLEANUP_SUPPORTED;
+#else
+        int converted = PyUnicode_FSConverter(unicode, &bytes);
+        Py_DECREF(unicode);
+        if (!converted)
+            bytes = NULL;
+#endif
+    }
+    else {
+        PyErr_Clear();
+        if (PyObject_CheckBuffer(o))
+            bytes = PyBytes_FromObject(o);
+        else
+            bytes = NULL;
+        if (!bytes) {
+            PyErr_Clear();
+        }
+    }
+
+    if (!bytes) {
+        if (!PyErr_Occurred())
+            FORMAT_EXCEPTION(PyExc_TypeError, "illegal type for %s parameter");
+        return 0;
+    }
+
+#ifdef MS_WINDOWS
+    if (win32_warn_bytes_api()) {
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+    length = BYTES_LENGTH(bytes);
+#ifdef MS_WINDOWS
+    if (length > MAX_PATH-1) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "%s too long for Windows");
+        Py_DECREF(bytes);
+        return 0;
+    }
+#endif
+
+    narrow = TO_CHAR(bytes);
+    if (length != strlen(narrow)) {
+        FORMAT_EXCEPTION(PyExc_ValueError, "embedded NUL character in %s");
+        Py_DECREF(bytes);
+        return 0;
+    }
+
+    path->wide = NULL;
+    path->narrow = narrow;
+    path->length = length;
+    path->object = o;
+    path->fd = -1;
+    path->cleanup = bytes;
+    return Py_CLEANUP_SUPPORTED;
+}
 
 typedef struct {
     PyObject_HEAD
@@ -181,7 +319,7 @@ HANDLE *p_handle;
         if (fi->handle == NULL) {
             p_handle = malloc(sizeof(HANDLE));
             Py_BEGIN_ALLOW_THREADS
-            *p_handle = FindFirstFileW(fi->path, &data);
+            *p_handle = FindFirstFileW(fi->path.wide, &data);
             Py_END_ALLOW_THREADS
 
             if (*p_handle == INVALID_HANDLE_VALUE) {
@@ -232,7 +370,7 @@ HANDLE *p_handle;
 }
 
 static PyObject *
-scandir_helper(PyObject *self, PyObject *args)
+scandir_helper2(PyObject *self, PyObject *args)
 {
     Py_UNICODE *wnamebuf;
     Py_ssize_t len;
@@ -258,7 +396,7 @@ scandir_helper(PyObject *self, PyObject *args)
         wcscpy(wnamebuf + len, L"*.*");
     }
 
-    iterator = _iterfile(wnamebuf);
+    //~ iterator = _iterfile(wnamebuf);
     if (iterator == NULL) {
         free(wnamebuf);
         return NULL;
@@ -337,29 +475,6 @@ struct dirent *ep;
     return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
 }
 
-static PyObject *
-scandir_helper(PyObject *self, PyObject *args)
-{
-PyObject *iterator;
-
-    path_t name = NULL;
-    PyObject *v;
-
-    if (!PyArg_ParseTuple(args, "U:scandir_helper", &v)) {
-        PyErr_Clear();
-    }
-    if (!PyArg_ParseTuple(args, "et:scandir_helper", Py_FileSystemDefaultEncoding, &name))
-        return NULL;
-
-    iterator = _iterfile(name);
-    if (iterator == NULL) {
-        free(name);
-        return NULL;
-    }
-
-    return iterator;
-}
-
 #endif
 
 static void
@@ -372,9 +487,7 @@ FileIterator *fi;
         if (fi->handle != NULL) {
             _fi_close(fi);
         }
-        if (fi->path != NULL) {
-            free(fi->path);
-        }
+        path_cleanup(&(fi->path));
         PyObject_Del(iterator);
     }
 }
@@ -444,8 +557,29 @@ _iterfile(path_t path)
     return (PyObject *)iterator;
 }
 
+static PyObject *
+scandir_helper(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+path_t path;
+static char *keywords[] = {"path", NULL};
+PyObject *iterator;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:scandir_helper", keywords,
+        path_converter, &path
+        ))
+        return NULL;
+
+    iterator = _iterfile(path);
+    if (iterator == NULL) {
+        path_cleanup(&path);
+        return NULL;
+    }
+
+    return iterator;
+}
+
 static PyMethodDef scandir_methods[] = {
-    {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS, NULL},
+    {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL},
 };
 

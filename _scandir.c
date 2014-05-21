@@ -322,7 +322,7 @@ HANDLE *p_handle;
     if (!fi->path.wide) {
         return PyErr_Format(PyExc_TypeError,
                     "scandir needs a unicode path on Windows");
-  }
+    }
 
     memset(&data, 0, sizeof(data));
 

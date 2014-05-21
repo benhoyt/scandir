@@ -20,11 +20,19 @@
 #define FROM_LONG PyLong_FromLong
 #define BYTES_LENGTH PyBytes_GET_SIZE
 #define TO_CHAR PyBytes_AS_STRING
+#define UNICODE_AND_SIZE(u, w, s) w = PyUnicode_AsUnicodeAndSize(u, &s)
 #else
 #define INITERROR return
 #define FROM_LONG PyInt_FromLong
 #define BYTES_LENGTH PyString_GET_SIZE
 #define TO_CHAR PyString_AS_STRING
+#define UNICODE_AND_SIZE(u, w, s) w = PyUnicode_AsUnicode(u); s = PyUnicode_GetSize(u);
+#endif
+
+#ifdef Py_CLEANUP_SUPPORTED
+#define PATH_CONVERTER_RESULT (Py_CLEANUP_SUPPORTED)
+#else
+#define PATH_CONVERTER_RESULT (1)
 #endif
 
 typedef struct {
@@ -94,12 +102,12 @@ path_converter(PyObject *o, void *p) {
         return 1;
     }
 
-    unicode = PyUnicode_FromEncodedObject(o, Py_FileSystemDefaultEncoding, "strict");
+    unicode = PyUnicode_FromObject(o);
     if (unicode) {
 #ifdef MS_WINDOWS
         wchar_t *wide;
 
-        wide = PyUnicode_AsUnicodeAndSize(unicode, &length);
+        UNICODE_AND_SIZE(unicode, wide, length);
         if (!wide) {
             Py_DECREF(unicode);
             return 0;
@@ -116,7 +124,7 @@ path_converter(PyObject *o, void *p) {
         path->object = o;
         path->fd = -1;
         path->cleanup = unicode;
-        return Py_CLEANUP_SUPPORTED;
+        return PATH_CONVERTER_RESULT;
 #else
         int converted = PyUnicode_FSConverter(unicode, &bytes);
         Py_DECREF(unicode);
@@ -126,8 +134,16 @@ path_converter(PyObject *o, void *p) {
     }
     else {
         PyErr_Clear();
-        if (PyObject_CheckBuffer(o))
+#if PY_MAJOR_VERSION >= 3
+        if (PyObject_CheckBuffer(o)) {
             bytes = PyBytes_FromObject(o);
+        }
+#else
+        if (PyString_Check(o)) {
+            bytes = o;
+            Py_INCREF(bytes);
+        }
+#endif
         else
             bytes = NULL;
         if (!bytes) {
@@ -170,7 +186,7 @@ path_converter(PyObject *o, void *p) {
     path->object = o;
     path->fd = -1;
     path->cleanup = bytes;
-    return Py_CLEANUP_SUPPORTED;
+    return PATH_CONVERTER_RESULT;
 }
 
 typedef struct {
@@ -302,6 +318,11 @@ PyObject *file_data;
 BOOL is_finished;
 WIN32_FIND_DATAW data;
 HANDLE *p_handle;
+
+    if (!fi->path.wide) {
+        return PyErr_Format(PyExc_TypeError,
+                    "scandir needs a unicode path on Windows");
+  }
 
     memset(&data, 0, sizeof(data));
 

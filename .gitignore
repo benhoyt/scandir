@@ -4,3 +4,4 @@ benchtree
 build
 
 /tests/*.log
+__pycache__

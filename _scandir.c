@@ -102,7 +102,6 @@ path_converter(PyObject *o, void *p) {
         return 1;
     }
 
-    DebugBreak();
 	unicode = PyUnicode_FromObject(o);
     if (unicode) {
 #ifdef MS_WINDOWS
@@ -614,23 +613,19 @@ iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (path.wide) {
+   if (path.wide) {
 		wchar_t *p;
-        printf("#1\n");
 
-        p = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 1));
+        p = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 10));
 		if (p == NULL)
             return PyErr_NoMemory();
-        printf("#1a\n");
 		wcscpy(p, path.wide);
-		PyMem_Free(path.wide);
+		if ((path.wide[path.length] != L"\\") && (path.wide[path.length] != L"/")) {
+	        wcscat(p, L"\\");
+		}
+        wcscat(p, L"*");
 		path.wide = p;
-	
-        printf("#2\n");
-        wcscpy(p + path.length, L"*");
-        printf("#3\n");
-        path.length += 1;
-        printf("Wide: %s", path.wide);
+        path.length = wcslen(path.wide);
     }
     if (path.narrow) {
         char *new_narrow;

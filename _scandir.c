@@ -102,7 +102,8 @@ path_converter(PyObject *o, void *p) {
         return 1;
     }
 
-    unicode = PyUnicode_FromObject(o);
+    DebugBreak();
+	unicode = PyUnicode_FromObject(o);
     if (unicode) {
 #ifdef MS_WINDOWS
         wchar_t *wide;
@@ -599,8 +600,56 @@ PyObject *iterator;
     return iterator;
 }
 
+static PyObject*
+iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    path_t path;
+    static char *keywords[] = {"path", NULL};
+
+    memset(&path, 0, sizeof(path));
+    path.function_name = "iterdir";
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:iterdir", keywords,
+                                     path_converter, &path)) {
+        return NULL;
+    }
+
+    if (path.wide) {
+		wchar_t *p;
+        printf("#1\n");
+
+        p = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 1));
+		if (p == NULL)
+            return PyErr_NoMemory();
+        printf("#1a\n");
+		wcscpy(p, path.wide);
+		PyMem_Free(path.wide);
+		path.wide = p;
+	
+        printf("#2\n");
+        wcscpy(p + path.length, L"*");
+        printf("#3\n");
+        path.length += 1;
+        printf("Wide: %s", path.wide);
+    }
+    if (path.narrow) {
+        char *new_narrow;
+
+        path.length += strlen("*");
+        new_narrow = PyMem_Realloc(path.narrow, path.length);
+        if (new_narrow == NULL)
+            return PyErr_NoMemory();
+        strcpy(new_narrow, path.narrow);
+        strcpy(new_narrow + path.length, "*");
+        PyMem_Free(path.narrow);
+        path.narrow = new_narrow;
+    }
+    return _iterfile(path);
+}
+
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"iterdir", (PyCFunction)iterdir, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL},
 };
 

@@ -1,5 +1,5 @@
 @echo off
-set PYTHON=py -3
+set PYTHON=C:\Users\tim\work-in-progress\python\scandir34\python.bat
 
 echo ====================
 echo Remove existing .pyd
@@ -8,8 +8,10 @@ IF ERRORLEVEL 1 pause
 
 echo ===============
 echo Build extension
-%PYTHON% setup.py build_ext --inplace
+%PYTHON% setup.py build_ext --debug --inplace
 IF ERRORLEVEL 1 pause
+
+goto finish
 
 echo =============
 echo Run extension
@@ -21,3 +23,5 @@ echo Test extension
 IF ERRORLEVEL 1 pause
 %PYTHON% tests\run_tests.py
 IF ERRORLEVEL 1 pause
+
+:finish

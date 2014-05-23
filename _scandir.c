@@ -584,31 +584,14 @@ scandir_helper(PyObject *self, PyObject *args, PyObject *kwargs)
 path_t path;
 static char *keywords[] = {"path", NULL};
 PyObject *iterator;
+PyObject *os_sep, *os_altsep;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:scandir_helper", keywords,
-        path_converter, &path
-        ))
-        return NULL;
-
-    iterator = _iterfile(path);
-    if (iterator == NULL) {
-        path_cleanup(&path);
-        return NULL;
-    }
-
-    return iterator;
-}
-
-static PyObject*
-iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
-{
-    path_t path;
-    static char *keywords[] = {"path", NULL};
+    os_sep = PyObject_GetAttr(
 
     memset(&path, 0, sizeof(path));
-    path.function_name = "iterdir";
+    path.function_name = "scandir_helper";
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:iterdir", keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:scandir_helper", keywords,
                                      path_converter, &path)) {
         return NULL;
     }
@@ -616,7 +599,8 @@ iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
    if (path.wide) {
 		wchar_t *filepath;
 
-        filepath = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 2));
+       /* Reallocate for additional backslash and wildcard */
+       filepath = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 3));
 		if (filepath == NULL)
             return PyErr_NoMemory();
 		wcscpy(filepath, path.wide);
@@ -645,12 +629,18 @@ iterdir (PyObject *self, PyObject *args, PyObject *kwargs)
 		path.narrow = filepath;
         path.length = strlen(path.narrow);
     }
-    return _iterfile(path);
+
+    iterator = _iterfile(path);
+    if (iterator == NULL) {
+        path_cleanup(&path);
+        return NULL;
+    }
+    return iterator;
 }
 
 static PyMethodDef scandir_methods[] = {
     {"scandir_helper", (PyCFunction)scandir_helper, METH_VARARGS | METH_KEYWORDS, NULL},
-    {"iterdir", (PyCFunction)iterdir, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"iterdir", (PyCFunction)scandir_helper, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL},
 };
 

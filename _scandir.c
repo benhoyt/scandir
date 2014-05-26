@@ -42,6 +42,7 @@ typedef struct {
     int allow_fd;
     wchar_t *wide;
     char *narrow;
+    int arg_is_wide;
     int fd;
     Py_ssize_t length;
     PyObject *object;
@@ -104,6 +105,7 @@ path_converter(PyObject *o, void *p) {
 
 	unicode = PyUnicode_FromObject(o);
     if (unicode) {
+        path->arg_is_wide = 1;
 #ifdef MS_WINDOWS
         wchar_t *wide;
 
@@ -133,6 +135,7 @@ path_converter(PyObject *o, void *p) {
 #endif
     }
     else {
+        path->arg_is_wide = 0;
         PyErr_Clear();
 #if PY_MAJOR_VERSION >= 3
         if (PyObject_CheckBuffer(o)) {
@@ -584,9 +587,6 @@ scandir_helper(PyObject *self, PyObject *args, PyObject *kwargs)
 path_t path;
 static char *keywords[] = {"path", NULL};
 PyObject *iterator;
-PyObject *os_sep, *os_altsep;
-
-    os_sep = PyObject_GetAttr(
 
     memset(&path, 0, sizeof(path));
     path.function_name = "scandir_helper";

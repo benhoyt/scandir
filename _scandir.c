@@ -394,45 +394,7 @@ HANDLE *p_handle;
     }
 }
 
-static PyObject *
-scandir_helper2(PyObject *self, PyObject *args)
-{
-    Py_UNICODE *wnamebuf;
-    Py_ssize_t len;
-    PyObject *po;
-    PyObject *iterator;
-
-    if (!PyArg_ParseTuple(args, "U:scandir_helper", &po))
-        return NULL;
-
-    /* Overallocate for \\*.*\0 */
-    len = PyUnicode_GET_SIZE(po);
-    wnamebuf = malloc((len + 5) * sizeof(wchar_t));
-    if (!wnamebuf) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    wcscpy(wnamebuf, PyUnicode_AS_UNICODE(po));
-    if (len > 0) {
-        Py_UNICODE wch = wnamebuf[len-1];
-        if (wch != L'/' && wch != L'\\' && wch != L':')
-            wnamebuf[len++] = L'\\';
-        wcscpy(wnamebuf + len, L"*.*");
-    }
-
-    //~ iterator = _iterfile(wnamebuf);
-    if (iterator == NULL) {
-        free(wnamebuf);
-        return NULL;
-    }
-
-    return iterator;
-}
-
 #else  // Linux / OS X
-
-#define NAMLEN(dirent) strlen((dirent)->d_name)
 
 static void
 _fi_close(FileIterator* fi)

@@ -105,10 +105,10 @@ path_converter(PyObject *o, void *p) {
 
 	unicode = PyUnicode_FromObject(o);
     if (unicode) {
-        path->arg_is_wide = 1;
 #ifdef MS_WINDOWS
         wchar_t *wide;
 
+        path->arg_is_wide = 1;
         UNICODE_AND_SIZE(unicode, wide, length);
         if (!wide) {
             Py_DECREF(unicode);
@@ -129,6 +129,7 @@ path_converter(PyObject *o, void *p) {
         return PATH_CONVERTER_RESULT;
 #else
         int converted = PyUnicode_FSConverter(unicode, &bytes);
+        path->arg_is_wide = 1;
         Py_DECREF(unicode);
         if (!converted)
             bytes = NULL;
@@ -496,7 +497,11 @@ struct dirent *ep;
         return NULL;
     }
 
-    return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
+    if (path.arg_is_wide) {
+        return PyBuildValue("UN", PyUnicode_DecodeFSDefault(ep->d_name), FROM_LONG(ep->d_type));
+    } else {
+        return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
+    }
 }
 
 #endif

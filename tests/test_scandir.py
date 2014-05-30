@@ -26,13 +26,6 @@ class TestScandir(unittest.TestCase):
         self.assertEquals(entries['file1.txt'].lstat().st_size, 4)
         self.assertEquals(entries['file2.txt'].lstat().st_size, 8)
 
-        if sys.platform == 'win32':
-            assert entries['file1.txt'].dirent is None
-        else:
-            assert entries['file1.txt'].dirent is not None
-            assert isinstance(entries['file1.txt'].dirent.d_ino, (int, long))
-            assert isinstance(entries['file1.txt'].dirent.d_type, int)
-
     def test_stat(self):
         entries = list(scandir.scandir(test_path))
         for entry in entries:

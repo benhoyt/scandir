@@ -202,9 +202,9 @@ using it instead of creating a tree.
         os_walk = os.walk
 
     if scandir._scandir:
-        print 'Using fast C version of scandir'
+        print('Using fast C version of scandir')
     else:
-        print 'Using slower ctypes version of scandir'
+        print('Using slower ctypes version of scandir')
 
     benchmark(tree_dir, get_size=options.size)
 

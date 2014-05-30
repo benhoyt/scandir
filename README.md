@@ -7,6 +7,9 @@ iterate a directory. scandir also provides a much faster version of
 `os.walk()`, because it can use the extra file information exposed by the
 scandir() function.
 
+scandir is intended to work on Python 2.6+ and Python 3.2+ (and it has been
+tested on those versions).
+
 
 Background
 ----------

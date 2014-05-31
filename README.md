@@ -18,7 +18,7 @@ Python's built-in `os.walk()` is significantly slower than it needs to be,
 because -- in addition to calling `listdir()` on each directory -- it calls
 `stat()` on each file to determine whether the filename is a directory or not.
 But both `FindFirstFile` / `FindNextFile` on Windows and `readdir` on Linux/OS
-X/BSD already tell you whether the files returned are directories or not, so
+X already tell you whether the files returned are directories or not, so
 no further `stat` system calls are needed. In short, you can reduce the number
 of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.

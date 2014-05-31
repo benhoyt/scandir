@@ -2,6 +2,9 @@
 *.pyd
 benchtree
 build
+dist
 build.bat
-/tests/*.log
+upload.bat
+MANIFEST
+test/*.log
 __pycache__

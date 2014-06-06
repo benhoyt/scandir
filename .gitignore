@@ -1,5 +1,7 @@
 *.pyc
 *.pyd
+*.sublime-project
+*.sublime-workspace
 benchtree
 build
 dist

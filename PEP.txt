@@ -111,7 +111,7 @@ Examples
 
 Here's a good usage pattern for ``scandir``. This is in fact almost
 exactly how the scandir module's faster ``os.walk()`` implementation
-uses it:
+uses it::
 
     dirs = []
     non_dirs = []
@@ -122,7 +122,7 @@ uses it:
             non_dirs.append(entry)
 
 Or, for getting the total size of files in a directory tree --
-showing use of the ``DirEntry.lstat()`` method:
+showing use of the ``DirEntry.lstat()`` method::
 
     def get_tree_size(path='.'):
         """Return total size of files in path and subdirs."""

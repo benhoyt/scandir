@@ -10,6 +10,11 @@ scandir() function.
 scandir is intended to work on Python 2.6+ and Python 3.2+ (and it has been
 tested on those versions).
 
+Note that this module is currently beta software -- working and used
+to some extent, and more than a proof-of-concept, but not
+battle-tested or extremely widely used. It's my hope that scandir
+will be included in Python 3.5 as `os.scandir()`.
+
 
 Background
 ----------

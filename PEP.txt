@@ -67,6 +67,9 @@ module). It lives on GitHub at `benhoyt/scandir`_.
 
 .. _`benhoyt/scandir`: https://github.com/benhoyt/scandir
 
+Note that this module has been clearly marked TODO
+
+
 
 Specifics of proposal
 =====================
@@ -179,36 +182,41 @@ The scandir module on GitHub has been forked and used quite a bit (see
 direct support for a scandir-like function from core developers and
 others on the python-dev and python-ideas mailing lists. A sampling:
 
-* **Guido van Rossum** on the possibility of adding scandir to Python
-  3.5: "The ship has likewise sailed for adding scandir() (whether
-  to os or pathlib). By all means experiment and get it ready for
-  consideration for 3.5, but I don't want to add it to 3.4."
-  [`source1 <https://mail.python.org/pipermail/python-dev/2013-November/130583.html>`_]
-
-* **Nick Coghlan**: "I've had the local Red Hat release engineering
-  team express their displeasure at having to stat every file in a
-  network mounted directory tree for info that is present in the
-  dirent structure, so a definite +1 to os.scandir from me, so long
-  as it makes that info available."
-  [`source2 <http://bugs.python.org/issue11406>`_]
+* **Nick Coghlan**, a core Python developer: "I've had the local Red
+  Hat release engineering team express their displeasure at having to
+  stat every file in a network mounted directory tree for info that is
+  present in the dirent structure, so a definite +1 to os.scandir from
+  me, so long as it makes that info available."
+  [`source1 <http://bugs.python.org/issue11406>`_]
 
 * **Tim Golden**, a core Python developer, supports scandir enough to
   have spent time refactoring and significantly improving scandir's C
   extension module.
-  [`source3 <https://github.com/tjguk/scandir>`_]
-
-* **Greg Ewing**, a long-time Pythonista, on refining the original
-  "iterdir" API: "Provide an iterdir() with a way of specifying
-  exactly which stat fields you're interested in. Then it can perform
-  stat calls if and only if needed, and the user doesn't have to
-  tediously test for presence of things in the result."
-  [`source4 <https://mail.python.org/pipermail/python-ideas/2012-November/017894.html>`_]
+  [`source2 <https://github.com/tjguk/scandir>`_]
 
 * **Christian Heimes**, a core Python developer: "+1 for something
   like yielddir()"
-  [`source5 <https://mail.python.org/pipermail/python-ideas/2012-November/017772.html>`_]
+  [`source3 <https://mail.python.org/pipermail/python-ideas/2012-November/017772.html>`_]
+  and "Indeed! I'd like to see the feature in 3.4 so I can remove my
+  own hack from our code base."
+  [`source4 <http://bugs.python.org/issue11406>`_]
 
-* TODO: re-read refs from issue 11406 and add more support
+* **Gregory P. Smith**, a core Python developer: "As 3.4beta1 happens
+  tonight, this isn't going to make 3.4 so i'm bumping this to 3.5.
+  I really like the proposed design outlined above."
+  [`source5 <http://bugs.python.org/issue11406>`_]
+
+* **Guido van Rossum** on the possibility of adding scandir to Python
+  3.5 (as it was too late for 3.4): "The ship has likewise sailed for
+  adding scandir() (whether to os or pathlib). By all means experiment
+  and get it ready for consideration for 3.5, but I don't want to add
+  it to 3.4."
+  [`source6 <https://mail.python.org/pipermail/python-dev/2013-November/130583.html>`_]
+
+Support for this PEP itself (meta-support?) was given by Nick Coghlan
+on python-dev: "A PEP reviewing all this for 3.5 and proposing a
+specific os.scandir API would be a good thing."
+[`source7 <https://mail.python.org/pipermail/python-dev/2013-November/130588.html>`_]
 
 
 Use in the wild
@@ -225,7 +233,7 @@ Hoyt has had several reports from people using it. For example:
 * bschollnick: "I wanted to let you know about this, since I am using
   Scandir as a building block for this code. Here's a good example of
   scandir making a radical performance improvement over os.listdir."
-  [`source6 <https://github.com/benhoyt/scandir/issues/19>`_]
+  [`source8 <https://github.com/benhoyt/scandir/issues/19>`_]
 
 * Avram L: "I'm testing our scandir for a project I'm working on.
   Seems pretty solid, so first thing, just want to say nice work!"
@@ -268,6 +276,12 @@ Should the function be included in the standard library in a new
 module, ``scandir.scandir()``, or just as ``os.scandir()`` as
 discussed? The preference of this PEP's author (Ben Hoyt) would be
 ``os.scandir()``, as it's just a single function.
+
+
+How sould scandir handle unicode filenames?
+-------------------------------------------
+
+TODO
 
 
 Should there be a way to access the full path?
@@ -315,7 +329,7 @@ here is a short list of some this PEP's author has in mind:
   so that it stays in the C extension module for longer, and may be
   somewhat faster as a result. This approach hasn't been tested, but
   was suggested by on Issue 11406 by Antoine Pitrou.
-  [`source7 <http://bugs.python.org/msg130125>`_]
+  [`source9 <http://bugs.python.org/msg130125>`_]
 
 
 Previous discussion

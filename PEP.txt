@@ -67,7 +67,11 @@ module). It lives on GitHub at `benhoyt/scandir`_.
 
 .. _`benhoyt/scandir`: https://github.com/benhoyt/scandir
 
-Note that this module has been clearly marked TODO
+Note that this module has been used and tested (see "Use in the wild"
+section in this PEP), so it's more than a proof-of-concept. However,
+it is marked as beta software and is not extensively battle-tested.
+It will need some cleanup and more thorough testing before going into
+the standard library.
 
 
 
@@ -276,12 +280,6 @@ Should the function be included in the standard library in a new
 module, ``scandir.scandir()``, or just as ``os.scandir()`` as
 discussed? The preference of this PEP's author (Ben Hoyt) would be
 ``os.scandir()``, as it's just a single function.
-
-
-How sould scandir handle unicode filenames?
--------------------------------------------
-
-TODO
 
 
 Should there be a way to access the full path?

@@ -60,8 +60,6 @@ improvements, or comment on the API.**
 Benchmarks
 ----------
 
-TODO
-
 Below are results showing how many times as fast `scandir.walk()` is than
 `os.walk()` on various systems, found by running `benchmark.py` with no
 arguments as well as with the `-s` argument (which totals the directory size).

@@ -71,7 +71,7 @@ Note that this module has been used and tested (see "Use in the wild"
 section in this PEP), so it's more than a proof-of-concept. However,
 it is marked as beta software and is not extensively battle-tested.
 It will need some cleanup and more thorough testing before going into
-the standard library.
+the standard library, as well as integration into `posixmodule.c`.
 
 
 

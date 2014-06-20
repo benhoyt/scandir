@@ -249,12 +249,22 @@ filetime_to_time(FILETIME *filetime)
     return (double)total / 10000000.0 - SECONDS_BETWEEN_EPOCHS;
 }
 
+unsigned long long
+filetime_to_time_ns(FILETIME *filetime)
+{
+    const unsigned long long NS100_BETWEEN_EPOCHS = 116444736000000000ULL;
+
+    unsigned long long total = (unsigned long long)filetime->dwHighDateTime << 32 |
+                               (unsigned long long)filetime->dwLowDateTime;
+    return (total - NS100_BETWEEN_EPOCHS) * 100ULL;
+}
+
 static PyTypeObject StatResultType;
 
 static PyObject *
 find_data_to_statresult(WIN32_FIND_DATAW *data)
 {
-    PY_LONG_LONG size;
+    PY_LONG_LONG size; // TODO ben: change to "unsigned PY_LONG_LONG"; also below
     PyObject *v = PyStructSequence_New(&StatResultType);
     if (v == NULL)
         return NULL;
@@ -272,6 +282,10 @@ find_data_to_statresult(WIN32_FIND_DATAW *data)
     PyStructSequence_SET_ITEM(v, 7, PyFloat_FromDouble(filetime_to_time(&data->ftLastAccessTime)));
     PyStructSequence_SET_ITEM(v, 8, PyFloat_FromDouble(filetime_to_time(&data->ftLastWriteTime)));
     PyStructSequence_SET_ITEM(v, 9, PyFloat_FromDouble(filetime_to_time(&data->ftCreationTime)));
+    PyStructSequence_SET_ITEM(v, 10, PyLong_FromUnsignedLongLong(filetime_to_time_ns(&data->ftLastAccessTime)));
+    PyStructSequence_SET_ITEM(v, 11, PyLong_FromUnsignedLongLong(filetime_to_time_ns(&data->ftLastWriteTime)));
+    PyStructSequence_SET_ITEM(v, 12, PyLong_FromUnsignedLongLong(filetime_to_time_ns(&data->ftCreationTime)));
+    PyStructSequence_SET_ITEM(v, 13, PyLong_FromUnsignedLong(data->dwFileAttributes));
 
     if (PyErr_Occurred()) {
         Py_DECREF(v);
@@ -292,6 +306,10 @@ static PyStructSequence_Field stat_result_fields[] = {
     {"st_atime",   "time of last access"},
     {"st_mtime",   "time of last modification"},
     {"st_ctime",   "time of last change"},
+    {"st_atime_ns",   "time of last access (integer nanoseconds)"},
+    {"st_mtime_ns",   "time of last modification (integer nanoseconds)"},
+    {"st_ctime_ns",   "time of last change (integer nanoseconds)"},
+    {"st_file_attributes",  "Windows file attributes"},
     {0}
 };
 

@@ -12,6 +12,7 @@ the full license text.
 
 from __future__ import division
 
+import collections
 import ctypes
 import os
 import stat
@@ -27,6 +28,26 @@ lstat = os.lstat
 S_IFDIR = stat.S_IFDIR
 S_IFREG = stat.S_IFREG
 S_IFLNK = stat.S_IFLNK
+
+# Windows FILE_ATTRIBUTE constants for interpreting the
+# FIND_DATA.dwFileAttributes member
+FILE_ATTRIBUTE_ARCHIVE = 32
+FILE_ATTRIBUTE_COMPRESSED = 2048
+FILE_ATTRIBUTE_DEVICE = 64
+FILE_ATTRIBUTE_DIRECTORY = 16
+FILE_ATTRIBUTE_ENCRYPTED = 16384
+FILE_ATTRIBUTE_HIDDEN = 2
+FILE_ATTRIBUTE_INTEGRITY_STREAM = 32768
+FILE_ATTRIBUTE_NORMAL = 128
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 8192
+FILE_ATTRIBUTE_NO_SCRUB_DATA = 131072
+FILE_ATTRIBUTE_OFFLINE = 4096
+FILE_ATTRIBUTE_READONLY = 1
+FILE_ATTRIBUTE_REPARSE_POINT = 1024
+FILE_ATTRIBUTE_SPARSE_FILE = 512
+FILE_ATTRIBUTE_SYSTEM = 4
+FILE_ATTRIBUTE_TEMPORARY = 256
+FILE_ATTRIBUTE_VIRTUAL = 65536
 
 # 'unicode' isn't defined on Python 3
 try:
@@ -84,9 +105,6 @@ if sys.platform == 'win32':
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
     ERROR_FILE_NOT_FOUND = 2
     ERROR_NO_MORE_FILES = 18
-    FILE_ATTRIBUTE_READONLY = 1
-    FILE_ATTRIBUTE_DIRECTORY = 16
-    FILE_ATTRIBUTE_REPARSE_POINT = 1024
 
     # Numer of seconds between 1601-01-01 and 1970-01-01
     SECONDS_BETWEEN_EPOCHS = 11644473600
@@ -112,6 +130,23 @@ if sys.platform == 'win32':
     FindClose = kernel32.FindClose
     FindClose.argtypes = [wintypes.HANDLE]
     FindClose.restype = wintypes.BOOL
+
+    Win32StatResult = collections.namedtuple('Win32StatResult', [
+        'st_mode',
+        'st_ino',
+        'st_dev',
+        'st_nlink',
+        'st_uid',
+        'st_gid',
+        'st_size',
+        'st_atime',
+        'st_mtime',
+        'st_ctime',
+        'st_atime_ns',
+        'st_mtime_ns',
+        'st_ctime_ns',
+        'st_file_attributes',
+    ])
 
     def filetime_to_time(filetime):
         """Convert Win32 FILETIME to time since Unix epoch in seconds."""
@@ -141,8 +176,12 @@ if sys.platform == 'win32':
 
         # Some fields set to zero per CPython's posixmodule.c: st_ino, st_dev,
         # st_nlink, st_uid, st_gid
-        return os.stat_result((st_mode, 0, 0, 0, 0, 0, st_size, st_atime,
-                               st_mtime, st_ctime))
+        return Win32StatResult(st_mode, 0, 0, 0, 0, 0, st_size,
+                               st_atime, st_mtime, st_ctime,
+                               int(st_atime * 1000000000),
+                               int(st_mtime * 1000000000),
+                               int(st_ctime * 1000000000),
+                               attributes)
 
     class Win32DirEntry(object):
         __slots__ = ('name', '_lstat', '_find_data')

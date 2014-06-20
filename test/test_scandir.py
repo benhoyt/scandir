@@ -8,6 +8,12 @@ import scandir
 
 test_path = os.path.join(os.path.dirname(__file__), 'dir')
 
+# longs are just ints on Python 3
+try:
+    long
+except NameError:
+    long = int
+
 class TestScandir(unittest.TestCase):
     def test_basic(self):
         entries = sorted(scandir.scandir(test_path), key=lambda e: e.name)
@@ -40,3 +46,24 @@ class TestScandir(unittest.TestCase):
         it = scandir.scandir(test_path)
         entry = next(it)
         assert hasattr(entry, 'name')
+
+    def check_file_attributes(self, result):
+        self.assertTrue(hasattr(result, 'st_file_attributes'))
+        self.assertTrue(isinstance(result.st_file_attributes, (int, long)))
+        self.assertTrue(0 <= result.st_file_attributes <= 0xFFFFFFFF)
+
+    @unittest.skipUnless(sys.platform == "win32",
+                         "st_file_attributes is Win32 specific")
+    def test_file_attributes(self):
+        entries = dict((e.name, e) for e in scandir.scandir(test_path))
+
+        # test st_file_attributes on a file (FILE_ATTRIBUTE_DIRECTORY not set)
+        result = entries['file1.txt'].lstat()
+        self.check_file_attributes(result)
+        self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY, 0)
+
+        # test st_file_attributes on a directory (FILE_ATTRIBUTE_DIRECTORY set)
+        result = entries['subdir'].lstat()
+        self.check_file_attributes(result)
+        self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY,
+                         scandir.FILE_ATTRIBUTE_DIRECTORY)

@@ -7,6 +7,7 @@ import sys
 import timeit
 
 import scandir
+import fts
 
 DEPTH = 4
 NUM_DIRS = 5
@@ -125,6 +126,15 @@ def get_tree_size(path):
         pass
     return size
 
+def get_tree_size_fts(path):
+    """Return total size of all files in directory tree at path."""
+    try:
+        with fts.FTS(path) as f:
+            return sum(entry.stat.st_size for entry in f
+                       if entry.info == fts.Info.F)
+    except OSError:
+        return 0
+
 def benchmark(path, get_size=False):
     sizes = {}
 
@@ -140,6 +150,9 @@ def benchmark(path, get_size=False):
         def do_scandir_walk():
             sizes['scandir_walk'] = get_tree_size(path)
 
+        def do_fts_walk():
+            sizes['fts_walk'] = get_tree_size_fts(path)
+
     else:
         def do_os_walk():
             for root, dirs, files in os_walk(path):
@@ -149,6 +162,11 @@ def benchmark(path, get_size=False):
             for root, dirs, files in scandir.walk(path):
                 pass
 
+        def do_fts_walk():
+            with fts.FTS(path, options=fts.Options.NOSTAT) as f:
+                for entry in f:
+                    pass
+
     # Run this once first to cache things, so we're not benchmarking I/O
     print("Priming the system's cache...")
     do_scandir_walk()
@@ -156,23 +174,28 @@ def benchmark(path, get_size=False):
     # Use the best of 3 time for each of them to eliminate high outliers
     os_walk_time = 1000000
     scandir_walk_time = 1000000
+    fts_walk_time = 1000000
     N = 3
     for i in range(N):
         print('Benchmarking walks on {0}, repeat {1}/{2}...'.format(
             path, i + 1, N))
         os_walk_time = min(os_walk_time, timeit.timeit(do_os_walk, number=1))
         scandir_walk_time = min(scandir_walk_time, timeit.timeit(do_scandir_walk, number=1))
+        fts_walk_time = min(fts_walk_time, timeit.timeit(do_fts_walk, number=1))
 
     if get_size:
-        if sizes['os_walk'] == sizes['scandir_walk']:
+        if sizes['os_walk'] == sizes['scandir_walk'] == sizes['fts_walk']:
             equality = 'equal'
         else:
             equality = 'NOT EQUAL!'
-        print('os.walk size {0}, scandir.walk size {1} -- {2}'.format(
-            sizes['os_walk'], sizes['scandir_walk'], equality))
+        print('os.walk size {0}, scandir.walk size {1}, fts size {2} -- {3}'.format(
+            sizes['os_walk'], sizes['scandir_walk'], sizes['fts_walk'], equality))
 
-    print('os.walk took {0:.3f}s, scandir.walk took {1:.3f}s -- {2:.1f}x as fast'.format(
-          os_walk_time, scandir_walk_time, os_walk_time / scandir_walk_time))
+    print('os.walk took {0:.3f}s'.format(os_walk_time))
+    print('scandir.walk took {0:.3f}s -- {1:.1f}x as fast'.format(
+          scandir_walk_time, os_walk_time / scandir_walk_time))
+    print('fts took {0:.3f}s -- {1:.1f}x as fast'.format(
+          fts_walk_time, os_walk_time / fts_walk_time))
 
 def main():
     """Usage: benchmark.py [-h] [tree_dir]

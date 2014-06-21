@@ -1,0 +1,220 @@
+The `fts` library is a thin wrapper around the platform's `fts` function,
+which provides a different API from `os.walk` for walking the filesystem.
+
+Performance
+===========
+
+`fts` is designed to be fast; it's what the `find` command uses. If
+there are platform-/filesystem-specific opportunities to skip `stat`
+in some cases, your platform's implementation will know about then. If
+`chdir` or fd-relative (`*at`) functions can help, it'll use them.
+
+The fact that the API iterates each entry, instead of each directory's
+worth of entries, is both good and bad. On the one hand, it means
+you're yielding back from C to Python `X*Y` times, instead of just `X`
+times. On the other hand, you usually have to iterate those entry
+lists, so really you're replacing nested `X` and `Y` loops with that
+single `X*Y` loop. (And of course for huge directories, not building
+those big lists in the first place will help.)
+
+Rather than come up with my own benchmarks, I just used the one from
+`scandir`, adding an obvious `fts` test alongside the existing ones,
+and then testing it with various different wrapper implementations.
+
+Unfortunately, the only machines I have to test on have SSDs and OS X
+10.8-10.10 (which has pretty good caching), so take this all with a
+grain of salt.
+
+    os.walk : 0.077s
+	scandir : 0.044s -- 1.7x as fast
+	fts_bare: 0.013s -- 5.9x as fast
+    fts_cvt : 0.128s -- 0.6x as fast
+	fts_copy: 0.039s -- 2.0x as fast
+	fts_opt : 0.041s -- 1.8x as fast
+	fts_c   : 0.023s -- 3.3x as fast
+	
+`fts_bare` just gives you the native `FTSENT(Structure)` objects. To
+access the information, you have to get the `.value` or `.contents`
+all over the place, convert and decode strings stored as `c_char_p`
+and length, deal with file kinds as integers, etc. That's not friendly
+enough to actually use. But for a test that just ignores every entry
+(as this benchmark does), it works, so this gives us an upper
+limit. Which is pretty nice.
+
+`fts_cvt` converts all of that stuff to nice Python `Entry` objects
+with decode `str` strings, `enum` file kinds, etc. It's slower than
+`scandir`, and even `os.walk`.
+
+`fts_copy` is a quick test to see how much of that cost is inherent to
+converting each object in Python; it fakes the "conversion" by just
+creating a new Python object that has the `FTSENT` as a member. I
+tried with both `ctypes` and `cffi`, and with a `namedtuple` and a
+`__slots__` class, and this was the fastest, but they're all about the
+same. As you can see, the cost of doing any converting in Python is
+pretty high.
+
+`fts_opt` is the closest I could come to the upper limit of `fts_copy`
+in Python: It does the fast conversions immediately, the slow ones on
+demand, and the really slow ones on demand with caching.
+
+`fts_c` implements the `Entry` object, and the conversion from
+`FTSENT`, in Cython. It has a refcounting error, and it uses a nasty
+cheat (linking to code from `posixmodule.c` at runtime), and the code
+is a mess, but it demonstrates that a serious implementation will have
+to be in C, but that doing so is worth it. (That being said, it might
+be worth having the pure `cffi`-based version around as well, for
+PyPy. I'll have to test how well the native version works with
+cpyext.)
+
+Portability
+===========
+
+Not every platform has `fts`. In fact, it's basically just modern \*BSD
+(including OS X) and Linux.
+
+Many older \*nix systems have `nftw`, and there's an implementation of
+`fts` as a wrapper around `nftw`. For those that only have the
+`opendir` and `stat` families, the fallback code in the FreeBSD
+implementation of `fts` itself works almost out of the box. Of course
+you don't get any of the platform-specific optimizations that way, but
+you get some performance benefit, and you get the full `fts` API.
+
+Windows, and other non-\*nix systems, of course have nothing like
+`fts`. While Windows does provide a limited emulation of `opendir`,
+you wouldn't want to use it when you have `FindFirstFile`. And
+implementing `fts` on top of `FindFirstFile` looks like a non-trivial
+project.
+
+Also, `fts` was not standardized in the most recent POSIX, so the
+closest thing to a standard is what 4.4BSD provided. This doesn't
+include the `clientptr` and `stream` functions, doesn't guarantee to
+set `NOCHDIR` if it decides not to `chdir`, and means `children`
+doesn't have a reliable API. Fortunately, none of those things should
+be necessary, so I stuck with what's available in 4.4BSD.
+
+Like everything else filesystem-related, `fts` relies on a mess of
+platform-specific structures and typedefs--the same ones that Python
+already wraps up in `os`, `stat`, etc., but those wrappers aren't
+exposed to non-stdlib modules.
+
+`ctypes` does a horrible job with this. You need a `setup.py` that
+does a bunch of `autoconf`-like tests just to figure out all the right
+type. Without that, my initial implementation worked on OS X
+10.8-10.10 and nothing else...
+
+`cffi` can handle things a little better (see the included code), but
+it has its own negatives. Besides not being in the stdlib (except in
+PyPy), the default usage compiles the C code on first run rather than
+at setup time.
+
+`Cython` seemed like a good bet, but it turns out to be a big pain to
+create C-implemented but Python-accessible objects that hold onto
+references to C-private objects. Or maybe I'm just out of practice
+with `Cython`.
+
+I think the right answer will be to write it in C. Which isn't too
+terrible; I just haven't done it yet.
+
+API
+===
+
+The `fts` function was designed to make it easier to support a
+mostly-portable find command. It's powerful and flexible and
+simple in the way that C is simple (which doesn't necessarily mean
+friendly...), and they've thought of all kinds of edge cases, like
+cycles through alternating names and so on.
+
+The biggest difference between the fts API and the os.walk API is that
+fts iterates directory entries (giving you name, path, kind, and, if
+you want it, full stat info) while os.walk iterates subdirectories
+(giving you lists of names for files and directories).
+
+The downside is that a different API is different. It's certainly not
+a drop-in replacement for `os.walk`. And, while you could write such a
+replacement, I haven't done it yet. And I'm not sure it's a great idea.
+
+To compare the APIs, here are a couple of examples:
+
+    def size_fts(path):
+        with fts.FTS(path) as f:
+            return sum(entry.stat.st_size for entry in f
+                       if entry.info == fts.Info.F)
+
+    def size_walk(path):
+        sum(os.path.getsize(os.path.join(root, name))
+            for root, dirs, files in os.walk(path)
+            for name in files)
+
+    def all_non_hidden_fts(path):
+        with fts.FTS(path) as f:
+            for entry in f:
+                if entry.name.startswith('.'):
+                    fts.skip(entry)
+                elif entry.info == fts.Info.F:
+                    yield entry
+
+    def all_non_hidden_walk(path):
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [dir for dir in dirs if not dir.startswith('.')]
+            yield from (os.path.join(root, file) for file in files
+                        if not file.startswith('.'))
+
+Unifying `fts` and `scandir`
+============================
+
+The ideal solution would be to come up with an API that allows for all
+of the common advantages of `fts` and `scandir`. And I don't think
+`os.walk` is that API. The very fact that the `--size` implementation
+with `scandir` didn't using `scandir.walk`, but instead a manual
+recursive implementation around `scandir.scandir`, is pretty good
+evidence that `os.walk` is not what you want.
+
+For comparison, here's what a native `fts` implementation of the two
+functions (do nothing vs. sum sizes) looks like:
+
+    with fts.FTS(path, options=fts.Option.NOSTAT) as f:
+	    for entry in f:
+		    pass
+
+    with fts.FTS(path) as f:
+        return sum(entry.stat.st_size for entry in f
+                   if entry.info == fts.Info.F)
+
+On the other hand, I think `fts` is pretty close to the right
+interface, it just needs to be made more Pythonic and stripped
+down. See the `ftss.py` file for an example of an interface that was
+pretty easy to implement on top of both `fts` and `scandir` that seems
+reasonably close. (It needs to be fleshed out, but the limitations are
+mostly caused by the way `scandir` works, which would be easy to
+change.)
+
+In particular, features of `fts` that aren't needed include:
+
+* No multiple roots.
+* Always follow a root symlink (eliminating the COMFOLLOW option).
+* Drop the `compar` sorting argument, and drop the guarantee that
+  entries will be provided in directory order.
+* Don't support any of the post-4.4BSD extensions.
+* Drop `children`.
+* Drop `path` and `name`; `accpath` is enough.
+* Drop `parent`, `link`, and `cycle`.
+* Pull out the special cases as separate values, instead of cramming
+  them into pseudo-filetypes. (This also means we can drop NOSTAT_TYPE.)
+* Change the filetypes from cryptic symbols like `F` and `DOT`
+  to `pathlib`-style methods.
+* The `Entry` object could be basically a `scandir.DirEntry` object,
+  with more methods added.
+* Or, even better, the `Entry` object could be a `pathlib.Path`
+  subclass. This might be a bit confusing; e.g., with `logical=False`,
+  should `is_file` be `False` for a symlink to a regular file, or
+  check on the fly, or raise? Also, some of this information is always
+  available for free with all of `fts`, `readdir`, and
+  `FindFirstFile`, while other things may require a syscall, depend on
+  both the options you chose and the platform you're on.
+* Drop `again`.
+* Drop `follow` in favor of an `lstat` method like `scandir`'s (which
+  calls `f.follow` and `next(f)` in the `fts` implementation).
+* The `skip` method doesn't need to take an `Entry` object (or it
+  could be a method on `Entry` rather than `FTS`); if you're not using
+  `children` or `stream` you can't skip anything but the current entry
+  anyway.

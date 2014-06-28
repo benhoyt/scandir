@@ -272,7 +272,7 @@ Rejected ideas
 
 TODO ben
 
-* naming: scandir vs iterdir and why
+* naming: scandir vs iterdir and why.
 * cross-platform wildcard support: note how tricky it is to get right with Windows quirky wildcard behaviour
 * windows_wildcard support: link to recent thread on python-dev with -1's, say why
 * making is_dir() etc properties (in constrast to methods) so they look like they do stuff and you can catch exceptions -- link to old python-dev/ideas thread where I argue this and one of the core devs agrees

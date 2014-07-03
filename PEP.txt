@@ -270,13 +270,90 @@ of ``os.walk`` (194,000) as there are of ``os.mkdir`` (230,000).
 Rejected ideas
 ==============
 
-TODO ben
 
-* naming: scandir vs iterdir and why.
-* cross-platform wildcard support: note how tricky it is to get right with Windows quirky wildcard behaviour
-* windows_wildcard support: link to recent thread on python-dev with -1's, say why
-* making is_dir() etc properties (in constrast to methods) so they look like they do stuff and you can catch exceptions -- link to old python-dev/ideas thread where I argue this and one of the core devs agrees
+Naming
+------
+
+The only other real contender for this function's name was `iterdir()`.
+However, `iterX()` functions in Python (mostly found in Python 2) tend
+to be simple iterator equivalents of their non-iterator counterparts.
+For example, `dict.iterkeys()` is just an iterator version of
+`dict.keys()`, but the objects returned are identical. In `scandir()`'s
+case, however, the return values are quite different objects (DirEntry
+objects vs filename strings), so this should probably be reflected by
+a difference in name -- hence `scandir()`.
+
+See some `relevant discussion on python-dev
+<https://mail.python.org/pipermail/python-dev/2014-June/135228.html>`_.
+
+
+Wildcard support
+----------------
+
+`FindFirstFile`/`FindNextFile` on Windows support passing a "wildcard"
+like `*.jpg`, so at first folks (this PEP's author included) felt it
+would be a good idea to include a `windows_wildcard` keyword argument
+to the `scandir` function so users could pass this in.
+
+However, on further thought and discussion it was decided that this
+would be bad idea, *unless it could be made cross-platform* (a
+`pattern` keyword argument or similar). This seems easy enough at
+first -- just use the OS wildcard support on Windows, and something
+like `fnmatch` or `re` afterwards on Unix-based systems.
+
+Unfortunately the exact Windows wildcard matching rules aren't really
+documented anywhere by Microsoft, and they're quite quirky (see this
+`blog post
+<http://blogs.msdn.com/b/oldnewthing/archive/2007/12/17/6785519.aspx>`_),
+meaning it's very problematic to emulate using `fnmatch` or regexes.
+
+So the consensus was that Windows wildcard support was a bad idea.
+It would be possible to add at a later date if there's a
+cross-platform way to achieve it, but not for the initial version.
+Read more on the `this python-ideas thread
+<https://mail.python.org/pipermail/python-ideas/2012-November/017770.html>`_
+and the
+`python-dev thread on PEP 471 <https://mail.python.org/pipermail/python-dev/2014-June/135217.html>`.
+
+
+DirEntry properties vs methods
+------------------------------
+
+In some ways it would be nicer for the `DirEntry` `is_X()` and
+`lstat()` to be properties instead of methods, to indicate they're
+very cheap or free. However, this isn't quite the case, as `lstat()`
+will require an OS call on Unix-based systems but not on Windows.
+Even `is_dir()` and friends may perform an OS call on Unix-based
+systems if the `dirent.d_type` value is `DT_UNKNOWN` (on certain file
+systems?).
+
+Also, people would expect the attribute access `entry.is_dir` to only
+ever raise `AttributeError`, not `OSError` in the case it makes a
+system call under the covers. Calling code would have to have a
+`try`/`except` around what looks like a simple attribute access, and
+so it's much better to make them *methods*.
+
+See `this python-dev thread
+<https://mail.python.org/pipermail/python-dev/2013-May/126184.html>`_ where this PEP author makes this case and there's agreement from a core developers.
+
+
+Type of objects returned
+------------------------
+
+Initially this PEP's author proposed this concept as a function called
+`iterdir_stat()` which yielded two-tuples of (name, stat_result). This
+does have the advantage that there are no new types introduced.
+However, the `stat_result` is only partially filled on Unix-based
+systems (most fields set to `None` and other quirks), so they're not
+really `stat_result` objects at all, and this would have to be
+thoroughly documented as different from `os.stat()`.
+
+Also, Python has nice objects with attributes and methods, which makes
+for a saner and simpler API than two-tuples.
+
 * return values being DirEntry objects instead of two-tuples (previous discussions and good point on recent python-dev), or instead of being an overloaded stat_result object
+
+* returning pathlib.Path objects instead of lightweight DirEntry. This seems like a great idea, but pathlib.Path.lstat() is explicitly not cached, so probably not a good one. See python-dev thread / Guido's email
 
 
 Open issues and optional things

@@ -31,7 +31,7 @@ directory -- it executes the system call ``os.stat()`` or
 a directory or not.
 
 But the underlying system calls -- ``FindFirstFile`` /
-``FindNextFile`` on Windows and ``readdir`` on Linux and OS X --
+``FindNextFile`` on Windows and ``readdir`` on POSIX systems --
 already tell you whether the files returned are directories or not, so
 no further system calls are needed. In short, you can reduce the
 number of system calls from approximately 2N to N, where N is the
@@ -41,7 +41,7 @@ much better than this.)
 
 In practice, removing all those extra system calls makes ``os.walk()``
 about **8-9 times as fast on Windows**, and about **2-3 times as fast
-on Linux and Mac OS X**. So we're not talking about micro-
+on POSIX systems**. So we're not talking about micro-
 optimizations. See more `benchmarks`_.
 
 .. _`benchmarks`: https://github.com/benhoyt/scandir#benchmarks
@@ -106,13 +106,13 @@ attributes and methods:
   the return values of ``os.listdir``)
 
 * ``is_dir()``: like ``os.path.isdir()``, but requires no system calls
-  on most systems (Linux, Windows, OS X)
+  on most systems (Windows and POSIX systems)
 
 * ``is_file()``: like ``os.path.isfile()``, but requires no system
-  calls on most systems (Linux, Windows, OS X)
+  calls on most systems (Windows and POSIX systems)
 
 * ``is_symlink()``: like ``os.path.islink()``, but requires no system
-  calls on most systems (Linux, Windows, OS X)
+  calls on most systems (Windows and POSIX systems)
 
 * ``lstat()``: like ``os.lstat()``, but requires no system calls on
   Windows
@@ -127,7 +127,7 @@ Notes on caching
 The ``DirEntry`` objects are relatively dumb -- the ``name`` attribute
 is obviously always cached, and the ``is_X`` and ``lstat`` methods
 cache their values (immediately on Windows via ``FindNextFile``, and
-on first use on Linux / OS X via a ``stat`` call) and never refetch
+on first use on POSIX systems via a ``stat`` call) and never refetch
 from the system.
 
 For this reason, ``DirEntry`` objects are intended to be used and
@@ -156,7 +156,7 @@ uses it::
             non_dirs.append(entry)
 
 The above ``os.walk()``-like code will be significantly using scandir
-on both Windows and Linux or OS X.
+on both Windows and POSIX systems.
 
 Or, for getting the total size of files in a directory tree -- showing
 use of the ``DirEntry.lstat()`` method::
@@ -173,7 +173,7 @@ use of the ``DirEntry.lstat()`` method::
         return size
 
 Note that ``get_tree_size()`` will get a huge speed boost on Windows,
-because no extra stat call are needed, but on Linux and OS X the size
+because no extra stat call are needed, but on POSIX systems the size
 information is not returned by the directory iteration functions, so
 this function won't gain anything there.
 

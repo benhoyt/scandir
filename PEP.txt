@@ -341,6 +341,12 @@ here is a short list of some this PEP's author has in mind:
   was suggested by on Issue 11406 by Antoine Pitrou.
   [`source9 <http://bugs.python.org/msg130125>`_]
 
+* scandir could use a free list to avoid the cost of memory allocation
+  for each iteration -- a short free list of 10 or maybe even 1 may help.
+  Suggested by Victor Stinner on a `python-dev thread on June 27`_.
+
+.. _`python-dev thread on June 27`: https://mail.python.org/pipermail/python-dev/2014-June/135232.html
+
 
 Previous discussion
 ===================

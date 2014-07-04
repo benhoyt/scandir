@@ -655,13 +655,13 @@ PyInit__scandir(void)
 void
 init_scandir(void)
 {
-    if (PyType_Ready(&FileIterator_Type) < 0) {
-        INITERROR;
-    }
-	
     PyObject *module = Py_InitModule("_scandir", scandir_methods);
 #endif
     if (module == NULL) {
+        INITERROR;
+    }
+
+    if (PyType_Ready(&FileIterator_Type) < 0) {
         INITERROR;
     }
 

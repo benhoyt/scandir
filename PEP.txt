@@ -351,7 +351,7 @@ thoroughly documented as different from `os.stat()`.
 Also, Python has nice objects with attributes and methods, which makes
 for a saner and simpler API than two-tuples.
 
-* return values being DirEntry objects instead of two-tuples (previous discussions and good point on recent python-dev), or instead of being an overloaded stat_result object
+* return values being DirEntry objects instead of two-tuples (previous discussions and good point on recent python-dev), or instead of being an overloaded stat_result object, or instead of Paul Moore's attribute-only solution in recent python-dev thread
 
 * returning pathlib.Path objects instead of lightweight DirEntry. This seems like a great idea, but pathlib.Path.lstat() is explicitly not cached, so probably not a good one. See python-dev thread / Guido's email
 

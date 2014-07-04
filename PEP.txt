@@ -1,4 +1,4 @@
-PEP: XXX
+PEP: 471
 Title: os.scandir() function -- a better and faster directory iterator
 Version: $Revision$
 Last-Modified: $Date$
@@ -8,7 +8,7 @@ Type: Standards Track
 Content-Type: text/x-rst
 Created: 30-May-2014
 Python-Version: 3.5
-Post-History: ***
+Post-History: TODO
 
 
 Abstract
@@ -186,6 +186,8 @@ The scandir module on GitHub has been forked and used quite a bit (see
 direct support for a scandir-like function from core developers and
 others on the python-dev and python-ideas mailing lists. A sampling:
 
+* TODO many +1's on the recent python-dev thread
+
 * **Nick Coghlan**, a core Python developer: "I've had the local Red
   Hat release engineering team express their displeasure at having to
   stat every file in a network mounted directory tree for info that is
@@ -299,7 +301,7 @@ However, on further thought and discussion it was decided that this
 would be bad idea, *unless it could be made cross-platform* (a
 `pattern` keyword argument or similar). This seems easy enough at
 first -- just use the OS wildcard support on Windows, and something
-like `fnmatch` or `re` afterwards on Unix-based systems.
+like `fnmatch` or `re` afterwards on POSIX-based systems.
 
 Unfortunately the exact Windows wildcard matching rules aren't really
 documented anywhere by Microsoft, and they're quite quirky (see this
@@ -310,22 +312,23 @@ meaning it's very problematic to emulate using `fnmatch` or regexes.
 So the consensus was that Windows wildcard support was a bad idea.
 It would be possible to add at a later date if there's a
 cross-platform way to achieve it, but not for the initial version.
-Read more on the `this python-ideas thread
+
+Read more on the `this Nov 2012 python-ideas thread
 <https://mail.python.org/pipermail/python-ideas/2012-November/017770.html>`_
-and the
-`python-dev thread on PEP 471 <https://mail.python.org/pipermail/python-dev/2014-June/135217.html>`.
+and this `June 2014 python-dev thread on PEP 471
+<https://mail.python.org/pipermail/python-dev/2014-June/135217.html>`.
 
 
-DirEntry properties vs methods
-------------------------------
+DirEntry attributes being properties
+------------------------------------
 
 In some ways it would be nicer for the `DirEntry` `is_X()` and
 `lstat()` to be properties instead of methods, to indicate they're
 very cheap or free. However, this isn't quite the case, as `lstat()`
-will require an OS call on Unix-based systems but not on Windows.
-Even `is_dir()` and friends may perform an OS call on Unix-based
+will require an OS call on POSIX-based systems but not on Windows.
+Even `is_dir()` and friends may perform an OS call on POSIX-based
 systems if the `dirent.d_type` value is `DT_UNKNOWN` (on certain file
-systems?).
+systems).
 
 Also, people would expect the attribute access `entry.is_dir` to only
 ever raise `AttributeError`, not `OSError` in the case it makes a
@@ -333,27 +336,71 @@ system call under the covers. Calling code would have to have a
 `try`/`except` around what looks like a simple attribute access, and
 so it's much better to make them *methods*.
 
-See `this python-dev thread
-<https://mail.python.org/pipermail/python-dev/2013-May/126184.html>`_ where this PEP author makes this case and there's agreement from a core developers.
+See `this May 2013 python-dev thread
+<https://mail.python.org/pipermail/python-dev/2013-May/126184.html>`_
+where this PEP author makes this case and there's agreement from a
+core developers.
 
 
-Type of objects returned
-------------------------
+Return values being (name, stat_result) two-tuples
+--------------------------------------------------
 
 Initially this PEP's author proposed this concept as a function called
 `iterdir_stat()` which yielded two-tuples of (name, stat_result). This
 does have the advantage that there are no new types introduced.
-However, the `stat_result` is only partially filled on Unix-based
+However, the `stat_result` is only partially filled on POSIX-based
 systems (most fields set to `None` and other quirks), so they're not
 really `stat_result` objects at all, and this would have to be
 thoroughly documented as different from `os.stat()`.
 
-Also, Python has nice objects with attributes and methods, which makes
-for a saner and simpler API than two-tuples.
+Also, Python has good support for proper objects with attributes and
+methods, which makes for a saner and simpler API than two-tuples. It
+also makes the `DirEntry` objects more extensible and future-proof as
+operating systems add functionality and we want to include this in
+`DirEntry`.
 
-* return values being DirEntry objects instead of two-tuples (previous discussions and good point on recent python-dev), or instead of being an overloaded stat_result object, or instead of Paul Moore's attribute-only solution in recent python-dev thread
+See also some previous discussion:
 
-* returning pathlib.Path objects instead of lightweight DirEntry. This seems like a great idea, but pathlib.Path.lstat() is explicitly not cached, so probably not a good one. See python-dev thread / Guido's email
+* `May 2013 python-dev thread
+  <https://mail.python.org/pipermail/python-dev/2013-May/126148.html>`_
+  where Nick Coghlan makes the original case for a `DirEntry`-style
+  object.
+
+* `June 2014 python-dev thread
+  <https://mail.python.org/pipermail/python-dev/2014-June/135244.html>`_
+  where Nick Coghlan makes (another) good case against the two-tuple
+  approach.
+
+
+Return values being overloaded stat_result objects
+--------------------------------------------------
+
+TODO, see recent python-dev discussion
+
+
+Return values being "static" attribute-only objects
+---------------------------------------------------
+
+TODO: Paul Moore's attribute-only solution in recent python-dev thread
+
+
+Return values being pathlib.Path objects
+----------------------------------------
+
+With Antoine Pitrou's new standard library `pathlib` module, it seems
+like a great idea for `scandir()` to return instances of
+`pathlib.Path`. However, `pathlib.Path`'s `is_X` and `lstat` functions
+are explicitly not cached, whereas `scandir` has to cache them by
+design, because it's (often) returning values from the original
+directory iteration system call.
+
+And if the `pathlib.Path` instances returned by `scandir` cached lstat
+values, but the ordinary `pathlib.Path` objects didn't, that would be
+more than a little confusing.
+
+Guido van Rossum explicitly rejected `pathlib.Path` caching lstat in
+the context of scandir `here
+<https://mail.python.org/pipermail/python-dev/2013-November/130583.html>`_.
 
 
 Open issues and optional things
@@ -438,8 +485,11 @@ Previous discussion
   ``scandir()`` API, including Nick Coghlan's suggestion of scandir
   yielding ``DirEntry``-like objects
 
-* `Final thread Ben Hoyt started on python-dev`_ to discuss the
+* `Another thread Ben Hoyt started on python-dev`_ to discuss the
   interaction between scandir and the new ``pathlib`` module
+
+* `Final thread Ben Hoyt started on python-dev`_ to discuss the first
+  version of this PEP, with extensive discussion about the API.
 
 * `Question on StackOverflow`_ about why ``os.walk()`` is slow and
   pointers on how to fix it (this inspired the author of this PEP
@@ -450,7 +500,8 @@ Previous discussion
 
 .. _`Original thread Ben Hoyt started on python-ideas`: https://mail.python.org/pipermail/python-ideas/2012-November/017770.html
 .. _`Further thread Ben Hoyt started on python-dev`: https://mail.python.org/pipermail/python-dev/2013-May/126119.html
-.. _`Final thread Ben Hoyt started on python-dev`: https://mail.python.org/pipermail/python-dev/2013-November/130572.html
+.. _`Another thread Ben Hoyt started on python-dev`: https://mail.python.org/pipermail/python-dev/2013-November/130572.html
+.. _`Final thread Ben Hoyt started on python-dev`: https://mail.python.org/pipermail/python-dev/2014-June/135215.html
 .. _`Question on StackOverflow`: http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder
 .. _`BetterWalk`: https://github.com/benhoyt/betterwalk
 

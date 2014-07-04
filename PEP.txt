@@ -409,15 +409,6 @@ Open issues and optional things
 There are a few open issues or optional additions:
 
 
-Should scandir be in its own module?
-------------------------------------
-
-Should the function be included in the standard library in a new
-module, ``scandir.scandir()``, or just as ``os.scandir()`` as
-discussed? The preference of this PEP's author (Ben Hoyt) would be
-``os.scandir()``, as it's just a single function.
-
-
 Should there be a way to access the full path?
 ----------------------------------------------
 

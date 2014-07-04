@@ -411,35 +411,6 @@ the context of scandir `here
 <https://mail.python.org/pipermail/python-dev/2013-November/130583.html>`_.
 
 
-Open issues and optional things
-===============================
-
-There are a few open issues or optional additions:
-
-
-Should it expose Windows wildcard functionality?
-------------------------------------------------
-
-Should ``scandir()`` have a way of exposing the wildcard functionality
-in the Windows ``FindFirstFile`` / ``FindNextFile`` functions? The
-scandir module on GitHub exposes this as a ``windows_wildcard``
-keyword argument, allowing Windows power users the option to pass a
-custom wildcard to ``FindFirstFile``, which may avoid the need to use
-``fnmatch`` or similar on the resulting names. It is named the
-unwieldly ``windows_wildcard`` to remind you you're writing power-
-user, Windows-only code if you use it.
-
-This boils down to whether ``scandir`` should be about exposing all of
-the system's directory iteration features, or simply providing a fast,
-simple, cross-platform directory iteration API.
-
-This PEP's author votes for not including ``windows_wildcard`` in the
-standard library version, because even though it could be useful in
-rare cases (say the Windows Dropbox client?), it'd be too easy to use
-it just because you're a Windows developer, and create code that is
-not cross-platform.
-
-
 Possible improvements
 =====================
 

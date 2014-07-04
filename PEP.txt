@@ -105,6 +105,9 @@ attributes and methods:
 * ``name``: the entry's filename, relative to ``path`` (corresponds to
   the return values of ``os.listdir``)
 
+* ``full_name``: the entry's full pathname -- the equivalent of
+  `os.path.join(path, entry.name)`
+
 * ``is_dir()``: like ``os.path.isdir()``, but requires no system calls
   on most systems (Windows and POSIX systems)
 
@@ -140,6 +143,12 @@ change), they'll need to call the regular ``os.lstat()`` or
 time.
 
 
+Notes on exception handling
+---------------------------
+
+TODO
+
+
 Examples
 ========
 
@@ -163,14 +172,13 @@ use of the ``DirEntry.lstat()`` method::
 
     def get_tree_size(path):
         """Return total size of files in path and subdirs."""
-        size = 0
+        total = 0
         for entry in scandir(path):
             if entry.is_dir():
-                sub_path = os.path.join(path, entry.name)
-                size += get_tree_size(sub_path)
+                total += get_tree_size(entry.full_name)
             else:
-                size += entry.lstat().st_size
-        return size
+                total += entry.lstat().st_size
+        return total
 
 Note that ``get_tree_size()`` will get a huge speed boost on Windows,
 because no extra stat call are needed, but on POSIX systems the size
@@ -407,17 +415,6 @@ Open issues and optional things
 ===============================
 
 There are a few open issues or optional additions:
-
-
-Should there be a way to access the full path?
-----------------------------------------------
-
-Should ``DirEntry``'s have a way to get the full path without using
-``os.path.join(path, entry.name)``? This is a pretty common pattern,
-and it may be useful to add pathlib-like ``str(entry)`` functionality.
-This functionality has also been requested in `issue 13`_ on GitHub.
-
-.. _`issue 13`: https://github.com/benhoyt/scandir/issues/13
 
 
 Should it expose Windows wildcard functionality?

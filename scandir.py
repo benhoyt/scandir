@@ -59,16 +59,23 @@ _scandir = None
 
 
 class GenericDirEntry(object):
-    __slots__ = ('name', '_lstat', '_path')
+    __slots__ = ('name', '_lstat', '_path', '_full_name')
 
     def __init__(self, path, name):
         self._path = path
         self.name = name
         self._lstat = None
+        self._full_name = None
+
+    @property
+    def full_name(self):
+        if self._full_name is None:
+            self._full_name = join(self._path, self.name)
+        return self._full_name
 
     def lstat(self):
         if self._lstat is None:
-            self._lstat = lstat(join(self._path, self.name))
+            self._lstat = lstat(self.full_name)
         return self._lstat
 
     def is_dir(self):
@@ -184,12 +191,20 @@ if sys.platform == 'win32':
                                attributes)
 
     class Win32DirEntry(object):
-        __slots__ = ('name', '_lstat', '_find_data')
+        __slots__ = ('name', '_lstat', '_find_data', '_path', '_full_name')
 
-        def __init__(self, name, find_data):
+        def __init__(self, path, name, find_data):
+            self._path = path
             self.name = name
             self._lstat = None
             self._find_data = find_data
+            self._full_name = None
+
+        @property
+        def full_name(self):
+            if self._full_name is None:
+                self._full_name = join(self._path, self.name)
+            return self._full_name
 
         def lstat(self):
             if self._lstat is None:
@@ -243,7 +258,7 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    yield Win32DirEntry(name, data)
+                    yield Win32DirEntry(path, name, data)
 
                 data = wintypes.WIN32_FIND_DATAW()
                 data_p = ctypes.byref(data)
@@ -263,11 +278,19 @@ if sys.platform == 'win32':
         scandir_helper = _scandir.scandir_helper
 
         class Win32DirEntry(object):
-            __slots__ = ('name', '_lstat')
+            __slots__ = ('name', '_lstat', '_path', '_full_name')
 
-            def __init__(self, name, lstat):
+            def __init__(self, path, name, lstat):
+                self._path = path
                 self.name = name
                 self._lstat = lstat
+                self._full_name = None
+
+            @property
+            def full_name(self):
+                if self._full_name is None:
+                    self._full_name = join(self._path, self.name)
+                return self._full_name
 
             def lstat(self):
                 return self._lstat
@@ -288,7 +311,7 @@ if sys.platform == 'win32':
 
         def scandir(path='.'):
             for name, stat in scandir_helper(unicode(path)):
-                yield Win32DirEntry(name, stat)
+                yield Win32DirEntry(path, name, stat)
 
     except ImportError:
         pass
@@ -344,17 +367,24 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     file_system_encoding = sys.getfilesystemencoding()
 
     class PosixDirEntry(object):
-        __slots__ = ('name', '_d_type', '_lstat', '_path')
+        __slots__ = ('name', '_d_type', '_lstat', '_path', '_full_name')
 
         def __init__(self, path, name, d_type):
             self._path = path
             self.name = name
             self._d_type = d_type
             self._lstat = None
+            self._full_name = None
+
+        @property
+        def full_name(self):
+            if self._full_name is None:
+                self._full_name = join(self._path, self.name)
+            return self._full_name
 
         def lstat(self):
             if self._lstat is None:
-                self._lstat = lstat(join(self._path, self.name))
+                self._lstat = lstat(self.full_name)
             return self._lstat
 
         # Ridiculous duplication between these is* functions -- helps a little
@@ -486,8 +516,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     # Recurse into sub-directories, following symbolic links if "followlinks"
     for entry in dirs:
         if followlinks or not entry.is_symlink():
-            new_path = join(top, entry.name)
-            for x in walk(new_path, topdown, onerror, followlinks):
+            for x in walk(entry.full_name, topdown, onerror, followlinks):
                 yield x
 
     # Yield before recursion if going bottom up

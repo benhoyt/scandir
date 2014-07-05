@@ -11,8 +11,6 @@ Python-Version: 3.5
 Post-History: TODO
 
 
-TODO: re-test code examples
-
 Abstract
 ========
 
@@ -236,6 +234,7 @@ error handling:
                 is_dir = entry.is_dir()
             except OSError as error:
                 print('Error calling is_dir():', error, file=sys.stderr)
+                continue
             if is_dir:
                 total += get_tree_size(entry.full_name)
             else:
@@ -254,7 +253,9 @@ The scandir module on GitHub has been forked and used quite a bit (see
 direct support for a scandir-like function from core developers and
 others on the python-dev and python-ideas mailing lists. A sampling:
 
-* TODO many +1's on the recent python-dev thread
+* **python-dev**: a good number of +1's and very few negatives for
+  scandir and PEP 471 on `this June 2014 python-dev thread
+  <https://mail.python.org/pipermail/python-dev/2014-June/135217.html>`_
 
 * **Nick Coghlan**, a core Python developer: "I've had the local Red
   Hat release engineering team express their displeasure at having to

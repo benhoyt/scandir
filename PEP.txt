@@ -128,7 +128,42 @@ The ``DirEntry`` attribute and method names were chosen to be the same
 as those in the new ``pathlib`` module for consistency.
 
 
-TODO: move the following two sections below examples?
+Examples
+========
+
+Here's a good usage pattern for ``scandir``. This is in fact almost
+exactly how the scandir module's faster ``os.walk()`` implementation
+uses it::
+
+    dirs = []
+    non_dirs = []
+    for entry in os.scandir(path):
+        if entry.is_dir():
+            dirs.append(entry)
+        else:
+            non_dirs.append(entry)
+
+The above ``os.walk()``-like code will be significantly using scandir
+on both Windows and POSIX systems.
+
+Or, for getting the total size of files in a directory tree -- showing
+use of the ``DirEntry.lstat()`` method::
+
+    def get_tree_size(path):
+        """Return total size of files in path and subdirs."""
+        total = 0
+        for entry in os.scandir(path):
+            if entry.is_dir():
+                total += get_tree_size(entry.full_name)
+            else:
+                total += entry.lstat().st_size
+        return total
+
+Note that ``get_tree_size()`` will get a huge speed boost on Windows,
+because no extra stat call are needed, but on POSIX systems the size
+information is not returned by the directory iteration functions, so
+this function won't gain anything there.
+
 
 Notes on caching
 ----------------
@@ -191,43 +226,6 @@ handling:
                 except OSError as error:
                     print('Error calling lstat():', error, file=sys.stderr)
         return total
-
-
-Examples
-========
-
-Here's a good usage pattern for ``scandir``. This is in fact almost
-exactly how the scandir module's faster ``os.walk()`` implementation
-uses it::
-
-    dirs = []
-    non_dirs = []
-    for entry in os.scandir(path):
-        if entry.is_dir():
-            dirs.append(entry)
-        else:
-            non_dirs.append(entry)
-
-The above ``os.walk()``-like code will be significantly using scandir
-on both Windows and POSIX systems.
-
-Or, for getting the total size of files in a directory tree -- showing
-use of the ``DirEntry.lstat()`` method::
-
-    def get_tree_size(path):
-        """Return total size of files in path and subdirs."""
-        total = 0
-        for entry in os.scandir(path):
-            if entry.is_dir():
-                total += get_tree_size(entry.full_name)
-            else:
-                total += entry.lstat().st_size
-        return total
-
-Note that ``get_tree_size()`` will get a huge speed boost on Windows,
-because no extra stat call are needed, but on POSIX systems the size
-information is not returned by the directory iteration functions, so
-this function won't gain anything there.
 
 
 Support

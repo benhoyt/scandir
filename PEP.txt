@@ -11,6 +11,8 @@ Python-Version: 3.5
 Post-History: TODO
 
 
+TODO: re-test code examples
+
 Abstract
 ========
 
@@ -120,9 +122,13 @@ attributes and methods:
 * ``lstat()``: like ``os.lstat()``, but requires no system calls on
   Windows
 
+TODO: add a bit more detail, and mention OSError raised by is_X() and lstat()
+
 The ``DirEntry`` attribute and method names were chosen to be the same
 as those in the new ``pathlib`` module for consistency.
 
+
+TODO: move the following two sections below examples?
 
 Notes on caching
 ----------------
@@ -135,19 +141,56 @@ from the system.
 
 For this reason, ``DirEntry`` objects are intended to be used and
 thrown away after iteration, not stored in long-lived data structured
-and the methods called again and again.
+and the methods called again and again. If a user wants "refresh"
+behaviour, they can simply use `pathlib.Path` objects, which
+explicitly don't cache stat or other system call results.
 
 If a user wants to do that (for example, for watching a file's size
 change), they'll need to call the regular ``os.lstat()`` or
-``os.path.getsize()`` functions which force a new system call each
-time.
+``os.path.getsize()`` functions which get fresh data from the
+operating system each time.
 
 
 Notes on exception handling
 ---------------------------
 
+The `DirEntry` `is_X` and `lstat` are explicitly methods rather than
+attributes or properties, to make it clear that they may not be free,
+and they may do a system call. As a result, these methods may raise
+`OSError`.
 
-TODO
+For example, `DirEntry.lstat()` will always make a system call on
+POSIX-based systems, and the `DirEntry.is_X()` methods will make a
+`stat()` system call on such systems if `readdir()` returns a `d_type`
+with a value of `DT_UNKNOWN`, which can occur under certain conditions
+or on certain file systems.
+
+For this reason, when a user requires fine-grained error handling,
+it's good to catch `OSError` around these method calls and then handle
+as appropriate.
+
+For example, below is a version of `get_tree_size()` with basic error
+handling:
+
+    def get_tree_size(path):
+        """Return total size of files in path and subdirs. If
+        is_dir() or lstat() fails, print an error message to stderr
+        and assume zero size (for example, file has been deleted).
+        """
+        total = 0
+        for entry in os.scandir(path):
+            try:
+                is_dir = entry.is_dir()
+            except OSError as error:
+                print('Error calling is_dir():', error, file=sys.stderr)
+            if is_dir:
+                total += get_tree_size(entry.full_name)
+            else:
+                try:
+                    total += entry.lstat().st_size
+                except OSError as error:
+                    print('Error calling lstat():', error, file=sys.stderr)
+        return total
 
 
 Examples
@@ -404,8 +447,8 @@ design, because it's (often) returning values from the original
 directory iteration system call.
 
 And if the `pathlib.Path` instances returned by `scandir` cached lstat
-values, but the ordinary `pathlib.Path` objects didn't, that would be
-more than a little confusing.
+values, but the ordinary `pathlib.Path` objects explicitly don't, that
+would be more than a little confusing.
 
 Guido van Rossum explicitly rejected `pathlib.Path` caching lstat in
 the context of scandir `here

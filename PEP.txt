@@ -127,6 +127,12 @@ TODO: add a bit more detail, and mention OSError raised by is_X() and lstat()
 The ``DirEntry`` attribute and method names were chosen to be the same
 as those in the new ``pathlib`` module for consistency.
 
+Like the other functions in the `os` module, `scandir()` accepts
+either a bytes or str object for the `path` parameter, and returns the
+`DirEntry.name` and `DirEntry.full_name` attributes as the same type.
+However, it's *strongly recommended* to use the str type, as this
+ensures cross-platform support for Unicode filenames.
+
 
 Examples
 ========

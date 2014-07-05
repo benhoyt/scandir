@@ -35,11 +35,15 @@ a directory or not.
 But the underlying system calls -- ``FindFirstFile`` /
 ``FindNextFile`` on Windows and ``readdir`` on POSIX systems --
 already tell you whether the files returned are directories or not, so
-no further system calls are needed. In short, you can reduce the
-number of system calls from approximately 2N to N, where N is the
-total number of files and directories in the tree. (And because
-directory trees are usually much wider than they are deep, it's often
-much better than this.)
+no further system calls are needed. Further, the Windows system calls
+return all the information for a ``stat_result`` object, such as file
+size and last modification time.
+
+In short, you can reduce the number of system calls required for a
+tree function like ``os.walk()`` from approximately 2N to N, where N
+is the total number of files and directories in the tree. (And because
+directory trees are usually wider than they are deep, it's often much
+better than this.)
 
 In practice, removing all those extra system calls makes ``os.walk()``
 about **8-9 times as fast on Windows**, and about **2-3 times as fast
@@ -73,7 +77,7 @@ Note that this module has been used and tested (see "Use in the wild"
 section in this PEP), so it's more than a proof-of-concept. However,
 it is marked as beta software and is not extensively battle-tested.
 It will need some cleanup and more thorough testing before going into
-the standard library, as well as integration into `posixmodule.c`.
+the standard library, as well as integration into ``posixmodule.c``.
 
 
 
@@ -108,36 +112,44 @@ attributes and methods:
   the return values of ``os.listdir``)
 
 * ``full_name``: the entry's full pathname -- the equivalent of
-  `os.path.join(path, entry.name)`
+  ``os.path.join(path, entry.name)``
 
-* ``is_dir()``: like ``os.path.isdir()``, but requires no system calls
-  on most systems (Windows and POSIX systems)
+* ``is_dir()``: like ``os.path.isdir()``, but much cheaper -- it never
+  requires a system call on Windows, and usually doesn't on POSIX
+  systems
 
-* ``is_file()``: like ``os.path.isfile()``, but requires no system
-  calls on most systems (Windows and POSIX systems)
+* ``is_file()``: like ``os.path.isfile()``, but much cheaper -- it
+  never requires a system call on Windows, and usually doesn't on
+  POSIX systems
 
-* ``is_symlink()``: like ``os.path.islink()``, but requires no system
-  calls on most systems (Windows and POSIX systems)
+* ``is_symlink()``: like ``os.path.islink()``, but much cheaper -- it
+  never requires a system call on Windows, and usually doesn't on
+  POSIX systems
 
-* ``lstat()``: like ``os.lstat()``, but requires no system calls on
-  Windows
+* ``lstat()``: like ``os.lstat()``, but much cheaper on some systems
+  -- it only requires a system call on POSIX systems
 
-TODO: add a bit more detail, and mention OSError raised by is_X() and lstat()
+The ``is_X`` methods may perform a ``stat()`` call under certain
+conditions (for example, on certain file systems on POSIX systems),
+and therefore possibly raise ``OSError``. The ``lstat()`` method will
+call ``stat()`` on POSIX systems and therefore also possibly raise
+``OSError``. See the "Notes on exception handling" section for more
+details.
 
 The ``DirEntry`` attribute and method names were chosen to be the same
 as those in the new ``pathlib`` module for consistency.
 
-Like the other functions in the `os` module, `scandir()` accepts
-either a bytes or str object for the `path` parameter, and returns the
-`DirEntry.name` and `DirEntry.full_name` attributes as the same type.
-However, it's *strongly recommended* to use the str type, as this
-ensures cross-platform support for Unicode filenames.
+Like the other functions in the ``os`` module, ``scandir()`` accepts
+either a bytes or str object for the ``path`` parameter, and returns
+the ``DirEntry.name`` and ``DirEntry.full_name`` attributes as the
+same type. However, it is *strongly recommended* to use the str type,
+as this ensures cross-platform support for Unicode filenames.
 
 
 Examples
 ========
 
-Here's a good usage pattern for ``scandir``. This is in fact almost
+Below is a good usage pattern for ``scandir``. This is in fact almost
 exactly how the scandir module's faster ``os.walk()`` implementation
 uses it::
 
@@ -183,7 +195,7 @@ from the system.
 For this reason, ``DirEntry`` objects are intended to be used and
 thrown away after iteration, not stored in long-lived data structured
 and the methods called again and again. If a user wants "refresh"
-behaviour, they can simply use `pathlib.Path` objects, which
+behaviour, they can simply use ``pathlib.Path`` objects, which
 explicitly don't cache stat or other system call results.
 
 If a user wants to do that (for example, for watching a file's size
@@ -195,23 +207,23 @@ operating system each time.
 Notes on exception handling
 ---------------------------
 
-The `DirEntry` `is_X` and `lstat` are explicitly methods rather than
-attributes or properties, to make it clear that they may not be free,
-and they may do a system call. As a result, these methods may raise
-`OSError`.
+The ``DirEntry`` ``is_X`` and ``lstat`` are explicitly methods rather
+than attributes or properties, to make it clear that they may not be
+free, and they may do a system call. As a result, these methods may
+raise ``OSError``.
 
-For example, `DirEntry.lstat()` will always make a system call on
-POSIX-based systems, and the `DirEntry.is_X()` methods will make a
-`stat()` system call on such systems if `readdir()` returns a `d_type`
-with a value of `DT_UNKNOWN`, which can occur under certain conditions
-or on certain file systems.
+For example, ``DirEntry.lstat()`` will always make a system call on
+POSIX-based systems, and the ``DirEntry.is_X()`` methods will make a
+``stat()`` system call on such systems if ``readdir()`` returns a
+``d_type`` with a value of ``DT_UNKNOWN``, which can occur under
+certain conditions or on certain file systems.
 
 For this reason, when a user requires fine-grained error handling,
-it's good to catch `OSError` around these method calls and then handle
-as appropriate.
+it's good to catch ``OSError`` around these method calls and then
+handle as appropriate.
 
-For example, below is a version of `get_tree_size()` with basic error
-handling:
+For example, below is a version of ``get_tree_size()`` with basic
+error handling:
 
     def get_tree_size(path):
         """Return total size of files in path and subdirs. If
@@ -332,14 +344,15 @@ Rejected ideas
 Naming
 ------
 
-The only other real contender for this function's name was `iterdir()`.
-However, `iterX()` functions in Python (mostly found in Python 2) tend
-to be simple iterator equivalents of their non-iterator counterparts.
-For example, `dict.iterkeys()` is just an iterator version of
-`dict.keys()`, but the objects returned are identical. In `scandir()`'s
-case, however, the return values are quite different objects (DirEntry
-objects vs filename strings), so this should probably be reflected by
-a difference in name -- hence `scandir()`.
+The only other real contender for this function's name was
+``iterdir()``. However, ``iterX()`` functions in Python (mostly found
+in Python 2) tend to be simple iterator equivalents of their
+non-iterator counterparts. For example, `dict.iterkeys()` is just an
+iterator version of ``dict.keys()``, but the objects returned are
+identical. In ``scandir()``'s case, however, the return values are
+quite different objects (DirEntry objects vs filename strings), so
+this should probably be reflected by a difference in name -- hence
+``scandir()``.
 
 See some `relevant discussion on python-dev
 <https://mail.python.org/pipermail/python-dev/2014-June/135228.html>`_.
@@ -348,22 +361,23 @@ See some `relevant discussion on python-dev
 Wildcard support
 ----------------
 
-`FindFirstFile`/`FindNextFile` on Windows support passing a "wildcard"
-like `*.jpg`, so at first folks (this PEP's author included) felt it
-would be a good idea to include a `windows_wildcard` keyword argument
-to the `scandir` function so users could pass this in.
+``FindFirstFile``/``FindNextFile`` on Windows support passing a
+"wildcard" like `*.jpg`, so at first folks (this PEP's author
+included) felt it would be a good idea to include a
+``windows_wildcard`` keyword argument to the ``scandir`` function so
+users could pass this in.
 
 However, on further thought and discussion it was decided that this
 would be bad idea, *unless it could be made cross-platform* (a
-`pattern` keyword argument or similar). This seems easy enough at
+``pattern`` keyword argument or similar). This seems easy enough at
 first -- just use the OS wildcard support on Windows, and something
-like `fnmatch` or `re` afterwards on POSIX-based systems.
+like ``fnmatch`` or ``re`` afterwards on POSIX-based systems.
 
 Unfortunately the exact Windows wildcard matching rules aren't really
 documented anywhere by Microsoft, and they're quite quirky (see this
 `blog post
 <http://blogs.msdn.com/b/oldnewthing/archive/2007/12/17/6785519.aspx>`_),
-meaning it's very problematic to emulate using `fnmatch` or regexes.
+meaning it's very problematic to emulate using ``fnmatch`` or regexes.
 
 So the consensus was that Windows wildcard support was a bad idea.
 It would be possible to add at a later date if there's a
@@ -378,19 +392,19 @@ and this `June 2014 python-dev thread on PEP 471
 DirEntry attributes being properties
 ------------------------------------
 
-In some ways it would be nicer for the `DirEntry` `is_X()` and
-`lstat()` to be properties instead of methods, to indicate they're
-very cheap or free. However, this isn't quite the case, as `lstat()`
+In some ways it would be nicer for the ``DirEntry`` ``is_X()`` and
+``lstat()`` to be properties instead of methods, to indicate they're
+very cheap or free. However, this isn't quite the case, as ``lstat()``
 will require an OS call on POSIX-based systems but not on Windows.
-Even `is_dir()` and friends may perform an OS call on POSIX-based
-systems if the `dirent.d_type` value is `DT_UNKNOWN` (on certain file
-systems).
+Even ``is_dir()`` and friends may perform an OS call on POSIX-based
+systems if the ``dirent.d_type`` value is ``DT_UNKNOWN`` (on certain
+file systems).
 
-Also, people would expect the attribute access `entry.is_dir` to only
-ever raise `AttributeError`, not `OSError` in the case it makes a
-system call under the covers. Calling code would have to have a
-`try`/`except` around what looks like a simple attribute access, and
-so it's much better to make them *methods*.
+Also, people would expect the attribute access ``entry.is_dir`` to
+only ever raise ``AttributeError``, not ``OSError`` in the case it
+makes a system call under the covers. Calling code would have to have
+a ``try``/``except`` around what looks like a simple attribute access,
+and so it's much better to make them *methods*.
 
 See `this May 2013 python-dev thread
 <https://mail.python.org/pipermail/python-dev/2013-May/126184.html>`_
@@ -402,24 +416,24 @@ Return values being (name, stat_result) two-tuples
 --------------------------------------------------
 
 Initially this PEP's author proposed this concept as a function called
-`iterdir_stat()` which yielded two-tuples of (name, stat_result). This
-does have the advantage that there are no new types introduced.
-However, the `stat_result` is only partially filled on POSIX-based
-systems (most fields set to `None` and other quirks), so they're not
-really `stat_result` objects at all, and this would have to be
-thoroughly documented as different from `os.stat()`.
+``iterdir_stat()`` which yielded two-tuples of (name, stat_result).
+This does have the advantage that there are no new types introduced.
+However, the ``stat_result`` is only partially filled on POSIX-based
+systems (most fields set to ``None`` and other quirks), so they're not
+really ``stat_result`` objects at all, and this would have to be
+thoroughly documented as different from ``os.stat()``.
 
 Also, Python has good support for proper objects with attributes and
 methods, which makes for a saner and simpler API than two-tuples. It
-also makes the `DirEntry` objects more extensible and future-proof as
-operating systems add functionality and we want to include this in
-`DirEntry`.
+also makes the ``DirEntry`` objects more extensible and future-proof
+as operating systems add functionality and we want to include this in
+``DirEntry``.
 
 See also some previous discussion:
 
 * `May 2013 python-dev thread
   <https://mail.python.org/pipermail/python-dev/2013-May/126148.html>`_
-  where Nick Coghlan makes the original case for a `DirEntry`-style
+  where Nick Coghlan makes the original case for a ``DirEntry``-style
   object.
 
 * `June 2014 python-dev thread
@@ -443,18 +457,18 @@ TODO: Paul Moore's attribute-only solution in recent python-dev thread
 Return values being pathlib.Path objects
 ----------------------------------------
 
-With Antoine Pitrou's new standard library `pathlib` module, it seems
-like a great idea for `scandir()` to return instances of
-`pathlib.Path`. However, `pathlib.Path`'s `is_X` and `lstat` functions
-are explicitly not cached, whereas `scandir` has to cache them by
-design, because it's (often) returning values from the original
-directory iteration system call.
+With Antoine Pitrou's new standard library ``pathlib`` module, it
+at first seems like a great idea for ``scandir()` to return instances
+of ``pathlib.Path``. However, ``pathlib.Path``'s ``is_X`` and
+``lstat`` functions are explicitly not cached, whereas ``scandir``
+has to cache them by design, because it's (often) returning values
+from the original directory iteration system call.
 
-And if the `pathlib.Path` instances returned by `scandir` cached lstat
-values, but the ordinary `pathlib.Path` objects explicitly don't, that
-would be more than a little confusing.
+And if the ``pathlib.Path`` instances returned by ``scandir`` cached
+lstat values, but the ordinary ``pathlib.Path`` objects explicitly
+don't, that would be more than a little confusing.
 
-Guido van Rossum explicitly rejected `pathlib.Path` caching lstat in
+Guido van Rossum explicitly rejected ``pathlib.Path`` caching lstat in
 the context of scandir `here
 <https://mail.python.org/pipermail/python-dev/2013-November/130583.html>`_.
 

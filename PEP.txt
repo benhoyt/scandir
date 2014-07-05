@@ -146,6 +146,7 @@ time.
 Notes on exception handling
 ---------------------------
 
+
 TODO
 
 
@@ -158,7 +159,7 @@ uses it::
 
     dirs = []
     non_dirs = []
-    for entry in scandir(path):
+    for entry in os.scandir(path):
         if entry.is_dir():
             dirs.append(entry)
         else:
@@ -173,7 +174,7 @@ use of the ``DirEntry.lstat()`` method::
     def get_tree_size(path):
         """Return total size of files in path and subdirs."""
         total = 0
-        for entry in scandir(path):
+        for entry in os.scandir(path):
             if entry.is_dir():
                 total += get_tree_size(entry.full_name)
             else:

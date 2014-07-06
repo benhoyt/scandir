@@ -8,7 +8,7 @@ Type: Standards Track
 Content-Type: text/x-rst
 Created: 30-May-2014
 Python-Version: 3.5
-Post-History: TODO
+Post-History: 27-Jun-2014, TODO
 
 
 Abstract
@@ -446,13 +446,40 @@ See also some previous discussion:
 Return values being overloaded stat_result objects
 --------------------------------------------------
 
-TODO, see recent python-dev discussion
+Another alternative discussed was making the return values to be
+overloaded ``stat_result`` objects with ``name`` and ``full_name``
+attributes. However, apart from this being a strange kind of
+overloading (it's a "file attributes" object with the filename stuffed
+in there), this has the same problems mentioned above -- most of the
+``stat_result`` information is not fetched by ``readdir()`` on POSIX
+systems, only (part of) the ``st_mode`` value.
 
 
 Return values being "static" attribute-only objects
 ---------------------------------------------------
 
-TODO: Paul Moore's attribute-only solution in recent python-dev thread
+In `this July 2014 python-dev thread
+<https://mail.python.org/pipermail/python-dev/2014-July/135303.html>`_,
+Paul Moore suggested a solution that was a "thin wrapper round the OS
+feature", where the ``DirEntry`` object had only static attributes:
+``name``, ``full_name``, and ``is_X``, with the ``st_X`` attributes
+only present on Windows. The idea was to use this simpler, lower-level
+function as a building block for higher-level functions.
+
+At first there was general agreement that simplifying in this way was
+a good thing. However, there were two problems with this approach.
+First, the assumption is the ``is_dir`` and similar attributes are
+always present on POSIX, which isn't the case (if ``d_type`` is
+``DT_UNKNOWN``). Second, it's a much harder-to-use API in practice,
+as even the ``is_dir`` attributes aren't always present on POSIX, and
+would need to be tested with ``hasattr`` and then ``os.stat()`` called
+if they weren't present.
+
+See `this July 2014 python-dev response
+<https://mail.python.org/pipermail/python-dev/2014-July/135312.html>`_
+from this PEP's author detailing why this option is something of a
+"world of both worlds" solution, and the subsequent reply from Paul
+Moore voicing agreement.
 
 
 Return values being pathlib.Path objects

@@ -441,6 +441,44 @@ from this PEP's author detailing why this option is a non-ideal
 solution, and the subsequent reply from Paul Moore voicing agreement.
 
 
+DirEntry fields being static with an ensure_lstat option
+--------------------------------------------------------
+
+Another seemingly simpler and attractive option was suggested by
+Nick Coghlan in this `June 2014 python-dev message
+<https://mail.python.org/pipermail/python-dev/2014-June/135261.html>`_:
+make ``DirEntry.is_X`` and ``DirEntry.lstat_result`` properties, and
+populate ``DirEntry.lstat_result`` at iteration time, but only if
+the new argument ``ensure_lstat=True`` was specified on the
+``scandir()`` call.
+
+This does have the advantage over the above in that you can easily get
+the stat result from ``scandir()`` if you need it. However, it has the
+serious disadvantage that fine-grained error handling is messy,
+because ``stat()`` will be called (and hence potentially raise
+``OSError``) during iteration, leading to a rather ugly, hand-made
+iteration loop::
+
+    it = os.scandir(path)
+    while True:
+        try:
+            entry = next(it)
+        except OSError as error:
+            handle_error(path, error)
+        except StopIteration:
+            break
+
+Or it means that ``scandir()`` would have to accept an ``onerror``
+argument -- a function to call when ``stat()`` errors occur during
+iteration. This seems to this PEP's author neither as direct nor as
+Pythonic as ``try``/``except`` around a ``DirEntry.lstat()`` call.
+
+See `Ben Hoyt's July 2014 reply
+<https://mail.python.org/pipermail/python-dev/2014-July/135312.html>`_
+to the discussion summarizing this and detailing why he thinks the
+original PEP 471 proposal is "the right one" after all.
+
+
 Return values being (name, stat_result) two-tuples
 --------------------------------------------------
 

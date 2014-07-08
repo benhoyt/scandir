@@ -18,7 +18,7 @@ import os
 import stat
 import sys
 
-__version__ = '0.5'
+__version__ = '0.6'
 __all__ = ['scandir', 'walk']
 
 # Shortcuts to these functions for speed and ease

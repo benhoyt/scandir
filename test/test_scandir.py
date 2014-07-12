@@ -52,9 +52,12 @@ class TestScandir(unittest.TestCase):
         self.assertTrue(isinstance(result.st_file_attributes, (int, long)))
         self.assertTrue(0 <= result.st_file_attributes <= 0xFFFFFFFF)
 
-    @unittest.skipUnless(sys.platform == "win32",
-                         "st_file_attributes is Win32 specific")
     def test_file_attributes(self):
+        if sys.platform != 'win32':
+            # st_file_attributes is Win32 specific (but can't use
+            # unittest.skipUnless on Python 2.6)
+            return
+
         entries = dict((e.name, e) for e in scandir.scandir(test_path))
 
         # test st_file_attributes on a file (FILE_ATTRIBUTE_DIRECTORY not set)

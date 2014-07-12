@@ -1,8 +1,8 @@
 scandir, a better directory iterator that returns all file info the OS provides
 ===============================================================================
 
-**UPDATE: I've written a Python Enhancement Proposal (PEP) to propose
-include scandir() in the standard library.** Please read
+**UPDATE: I've written a Python Enhancement Proposal (PEP) that proposes
+including scandir() in the standard library.** Please read
 [PEP 471](http://legacy.python.org/dev/peps/pep-0471/) for details.
 
 scandir is a module which provides a generator version of `os.listdir()` that
@@ -129,6 +129,17 @@ order. Each DirEntry object has the following attributes and methods:
 * `is_symlink()`: return True iff this directory entry is a symbolic
    link, but requires no OS calls on most systems
 * `lstat()`: like os.lstat(), but requires no OS calls on Windows
+
+The `is_X()` functions may call `lstat()` on some systems, so if you
+want fine-grained error handling of this you should catch `OSError`
+around the calls.
+
+On systems where `is_X()` or `lstat()` does make a system call, the
+stat result is cached after the first call and never fetched again.
+This is in contrast to the `os.path.isX()` and `pathlib.Path.is_X()`
+functions -- scandir's `DirEntry` objects aren't intended to monitor
+changing stat info over time. Just use the `os.path` or `pathlib`
+functions if you want that behaviour.
 
 Here's a good usage pattern for `scandir`. This is in fact almost exactly how
 the faster `os.walk()` implementation uses it:

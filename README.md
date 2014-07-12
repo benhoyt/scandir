@@ -1,6 +1,10 @@
 scandir, a better directory iterator that returns all file info the OS provides
 ===============================================================================
 
+**UPDATE: I've written a Python Enhancement Proposal (PEP) to propose
+include scandir() in the standard library.** Please read
+[PEP 471](http://legacy.python.org/dev/peps/pep-0471/) for details.
+
 scandir is a module which provides a generator version of `os.listdir()` that
 also exposes the extra file information the operating system returns when you
 iterate a directory. scandir also provides a much faster version of
@@ -107,25 +111,24 @@ The `scandir()` function is the scandir module's main workhorse. It's defined
 as follows:
 
 ```python
-scandir(path='.', windows_wildcard='*.*') -> iterator of DirEntry objects
+scandir(path='.') -> iterator of DirEntry objects
 ```
 
 It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
 `.` and `..` are skipped, and the entries are yielded in system-dependent
 order. Each DirEntry object has the following attributes and methods:
 
-* `name`: filename, relative to path (like that returned by os.listdir)
-* `is_dir()`: like os.path.isdir(), but requires no OS calls on most systems
-  (Linux, Windows, OS X)
-* `is_file()`: like os.path.isfile(), but requires no OS calls on most systems
-  (Linux, Windows, OS X)
-* `is_symlink()`: like os.path.islink(), but requires no OS calls on most
-  systems (Linux, Windows, OS X)
+* `name`: this entry's filename relative to path (like the string
+   returned by os.listdir)
+* `full_name`: this entry's full path name, equivalent to
+   `os.path.join(path, entry.name)`
+* `is_dir()`: return True iff this directory entry is a directory, but
+   requires no OS calls on most systems (note: doesn't follow symlinks)
+* `is_file()`: return True iff this directory entry is a file, but
+   requires no OS calls on most systems (note: doesn't follow symlinks)
+* `is_symlink()`: return True iff this directory entry is a symbolic
+   link, but requires no OS calls on most systems
 * `lstat()`: like os.lstat(), but requires no OS calls on Windows
-
-Obviously `windows_wildcard` is only available on Windows. It allows Windows
-power users to pass a custom wildcard to FindFirstFile, which may avoid the
-need to use `fnmatch` on the resulting names.
 
 Here's a good usage pattern for `scandir`. This is in fact almost exactly how
 the faster `os.walk()` implementation uses it:

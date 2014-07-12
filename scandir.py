@@ -18,7 +18,7 @@ import os
 import stat
 import sys
 
-__version__ = '0.6'
+__version__ = '0.7'
 __all__ = ['scandir', 'walk']
 
 # Shortcuts to these functions for speed and ease
@@ -236,14 +236,14 @@ if sys.platform == 'win32':
         exc.filename = filename
         return exc
 
-    def scandir(path='.', windows_wildcard='*.*'):
+    def scandir(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
         # Call FindFirstFile and handle errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = join(path, windows_wildcard)
+        filename = join(path, '*.*')
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()

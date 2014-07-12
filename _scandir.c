@@ -133,7 +133,7 @@ path_converter(PyObject *o, void *p) {
         if (!PyUnicode_FSConverter(unicode, &bytes))
             bytes = NULL;
 #else
-        bytes = PyUnicode_AsEncodedString(unicode, "iso-8859-1", "surrogateescape");
+        bytes = PyUnicode_AsEncodedString(unicode, Py_FileSystemDefaultEncoding, "strict");
 #endif
         Py_DECREF(unicode);
 #endif

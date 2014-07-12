@@ -483,15 +483,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     nondirs = []
     try:
         for entry in scandir(top):
-            if entry.is_symlink():
-                # os.walk() has somewhat funky behaviour -- when
-                # "followlinks" is False (the default) it includes
-                # symlinks in the dirs list but doesn't follow them
-                if not followlinks or isdir(entry.full_name):
-                    dirs.append(entry)
-                else:
-                    nondirs.append(entry)
-            elif entry.is_dir():
+            if (entry.is_symlink() and isdir(entry.full_name)) or entry.is_dir():
                 dirs.append(entry)
             else:
                 nondirs.append(entry)

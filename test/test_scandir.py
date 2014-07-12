@@ -77,3 +77,39 @@ class TestScandir(unittest.TestCase):
                          [('file1.txt', False), ('file2.txt', False), ('subdir', True)])
         self.assertEqual([os.path.normpath(os.path.join(test_path, e.name)) for e in entries],
                          [os.path.normpath(e.full_name) for e in entries])
+
+
+class TestSymlink(unittest.TestCase):
+    def setUp(self):
+        if not hasattr(os, 'symlink'):
+            return
+
+        try:
+            os.symlink(os.path.join(test_path, 'file1.txt'),
+                       os.path.join(test_path, 'link_to_file'))
+        except NotImplementedError:
+            # Windows versions before Vista don't support symbolic links
+            return
+
+        dir_name = os.path.join(test_path, 'subdir')
+        dir_link = os.path.join(test_path, 'link_to_dir')
+        if sys.version_info >= (3, 3):
+            # "target_is_directory" was only added in Python 3.3
+            os.symlink(dir_name, dir_link, target_is_directory=True)
+        else:
+            os.symlink(dir_name, dir_link)
+
+    def tearDown(self):
+        if not hasattr(os, 'symlink'):
+            return
+        os.remove(os.path.join(test_path, 'link_to_file'))
+        os.remove(os.path.join(test_path, 'link_to_dir'))
+
+    def test_symlink(self):
+        if not hasattr(os, 'symlink'):
+            return
+        entries = sorted(scandir.scandir(test_path), key=lambda e: e.name)
+        self.assertEqual([(e.name, e.is_symlink()) for e in entries],
+                         [('file1.txt', False), ('file2.txt', False),
+                          ('link_to_dir', True), ('link_to_file', True),
+                          ('subdir', False)])

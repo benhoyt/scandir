@@ -24,6 +24,7 @@ __all__ = ['scandir', 'walk']
 # Shortcuts to these functions for speed and ease
 join = os.path.join
 lstat = os.lstat
+isdir = os.path.isdir
 
 S_IFDIR = stat.S_IFDIR
 S_IFREG = stat.S_IFREG
@@ -482,7 +483,15 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     nondirs = []
     try:
         for entry in scandir(top):
-            if entry.is_dir():
+            if entry.is_symlink():
+                # os.walk() has somewhat funky behaviour -- when
+                # "followlinks" is False (the default) it includes
+                # symlinks in the dirs list but doesn't follow them
+                if not followlinks or isdir(entry.full_name):
+                    dirs.append(entry)
+                else:
+                    nondirs.append(entry)
+            elif entry.is_dir():
                 dirs.append(entry)
             else:
                 nondirs.append(entry)

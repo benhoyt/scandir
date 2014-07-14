@@ -380,7 +380,10 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         @property
         def full_name(self):
             if self._full_name is None:
-                self._full_name = join(self._path, self.name)
+                name = self.name
+                if not isinstance(name, unicode):
+                    name = name.decode(file_system_encoding)
+                self._full_name = join(self._path, name)
             return self._full_name
 
         def lstat(self):

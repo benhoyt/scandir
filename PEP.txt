@@ -17,8 +17,8 @@ Abstract
 This PEP proposes including a new directory iteration function,
 ``os.scandir()``, in the standard library. This new function adds
 useful functionality and increases the speed of ``os.walk()`` by 2-20
-times (depending on the platform and file system) by significantly
-reducing the number of times ``stat()`` needs to be called.
+times (depending on the platform and file system) by avoiding calls to
+``os.stat()`` in most cases.
 
 
 Rationale
@@ -34,8 +34,8 @@ But the underlying system calls -- ``FindFirstFile`` /
 ``FindNextFile`` on Windows and ``readdir`` on POSIX systems --
 already tell you whether the files returned are directories or not, so
 no further system calls are needed. Further, the Windows system calls
-return all the information for a ``stat_result`` object, such as file
-size and last modification time.
+return all the information for a ``stat_result`` object on the directory
+entry, such as file size and last modification time.
 
 In short, you can reduce the number of system calls required for a
 tree function like ``os.walk()`` from approximately 2N to N, where N
@@ -83,6 +83,9 @@ the standard library, as well as integration into ``posixmodule.c``.
 Specifics of proposal
 =====================
 
+os.scandir()
+------------
+
 Specifically, this PEP proposes adding a single function to the ``os``
 module in the standard library, ``scandir``, that takes a single,
 optional string as its argument::
@@ -116,21 +119,21 @@ following attributes and methods:
 * ``is_dir(*, follow_symlinks=True)``: similar to
   ``pathlib.Path.is_dir()``, but the return value is cached on the
   ``DirEntry`` object; doesn't require a system call in most cases;
-  don't follow symbolic links if ``follow_symlinks`` is false
+  don't follow symbolic links if ``follow_symlinks`` is False
 
 * ``is_file(*, follow_symlinks=True)``: similar to
   ``pathlib.Path.is_file()``, but the return value is cached on the
   ``DirEntry`` object; doesn't require a system call in most cases; 
-  don't follow symbolic links if ``follow_symlinks`` is false
+  don't follow symbolic links if ``follow_symlinks`` is False
 
 * ``is_symlink()``: similar to ``pathlib.Path.is_symlink()``, but the
   return value is cached on the ``DirEntry`` object; doesn't require a
   system call in most cases
 
 * ``stat(*, follow_symlinks=True)``: like ``os.stat()``, but the
-  return value is cached on the ``DirEntry`` object; only requires a
-  system call on some systems (POSIX); don't follow symbolic links
-  (like ``os.lstat()``) if ``follow_symlinks`` is false
+  return value is cached on the ``DirEntry`` object; does not require a
+  system call on Windows (except for symlinks); don't follow symbolic links
+  (like ``os.lstat()``) if ``follow_symlinks`` is False
 
 All *methods* may perform system calls in some cases and therefore
 possibly raise ``OSError`` -- see the "Notes on exception handling"
@@ -147,7 +150,16 @@ either a bytes or str object for the ``directory`` parameter, and
 returns the ``DirEntry.name`` and ``DirEntry.path`` attributes with
 the same type as ``directory``. However, it is *strongly recommended*
 to use the str type, as this ensures cross-platform support for
-Unicode filenames.
+Unicode filenames. (On Windows, bytes filenames have been deprecated
+since Python 3.3).
+
+os.walk()
+---------
+
+As part of this proposal, ``os.walk()`` will also be modified to use
+``scandir()`` rather than ``listdir()`` and ``os.path.isdir()``. This
+will increase the speed of ``os.walk()`` very significantly (as
+mentioned above, by 2-20 times, depending on the system).
 
 
 Examples
@@ -180,7 +192,7 @@ attribute::
             if entry.is_dir(follow_symlinks=False):
                 total += get_tree_size(entry.path)
             else:
-                total += entry.stat().st_size
+                total += entry.stat(follow_symlinks=False).st_size
         return total
 
 This also shows the use of the ``follow_symlinks`` parameter to
@@ -227,7 +239,7 @@ POSIX-based systems, and the ``DirEntry.is_X()`` methods will make a
 ``stat()`` system call on such systems if ``readdir()`` does not
 support ``d_type`` or returns a ``d_type`` with a value of
 ``DT_UNKNOWN``, which can occur under certain conditions or on
-certain (file) systems.
+certain file systems.
 
 Often this does not matter -- for example, ``os.walk()`` as defined in
 the standard library only catches errors around the ``listdir()``
@@ -262,7 +274,7 @@ shown above, but with fine-grained error handling added::
                 total += get_tree_size(entry.path)
             else:
                 try:
-                    total += entry.stat().st_size
+                    total += entry.stat(follow_symlinks=False).st_size
                 except OSError as error:
                     print('Error calling stat():', error, file=sys.stderr)
         return total
@@ -359,13 +371,11 @@ of July 7, 2014:
 * Forks: 20
 * Issues: 4 open, 26 closed
 
-**However, the much larger point is this:**, if this PEP is accepted,
-``os.walk()`` can easily be reimplemented using ``scandir`` rather
-than ``listdir`` and ``stat``, increasing the speed of ``os.walk()``
-very significantly. There are thousands of developers, scripts, and
-production code that would benefit from this large speedup of
-``os.walk()``. For example, on GitHub, there are almost as many uses
-of ``os.walk`` (194,000) as there are of ``os.mkdir`` (230,000).
+Also, because this PEP will increase the speed of ``os.walk()``
+significantly, there are thousands of developers and scripts, and a lot
+of production code, that would benefit from it. For example, on GitHub,
+there are almost as many uses of ``os.walk`` (194,000) as there are of
+``os.mkdir`` (230,000).
 
 
 Rejected ideas
@@ -426,10 +436,11 @@ Methods not following symlinks by default
 There was much debate on python-dev (see messages in `this thread
 <https://mail.python.org/pipermail/python-dev/2014-July/135485.html>`_)
 over whether the ``DirEntry`` methods should follow symbolic links or
-not. Initially they did not (see previous versions of this PEP and the
-scandir.py module), but Victor Stinner made a pretty compelling case
-on python-dev that following symlinks by default is a better idea,
-because:
+not (when the ``is_X()`` methods had no ``follow_symlinks`` parameter).
+
+Initially they did not (see previous versions of this PEP and the
+scandir.py module), but Victor Stinner made a pretty compelling case on
+python-dev that following symlinks by default is a better idea, because:
 
 * following links is usually what you want (in 92% of cases in the
   standard library, functions using ``os.listdir()`` and
@@ -538,6 +549,11 @@ Or it means that ``scandir()`` would have to accept an ``onerror``
 argument -- a function to call when ``stat()`` errors occur during
 iteration. This seems to this PEP's author neither as direct nor as
 Pythonic as ``try``/``except`` around a ``DirEntry.stat()`` call.
+
+Another drawback is that ``os.scandir()`` is written to make code faster.
+Always calling ``os.lstat()`` on POSIX would not bring any speedup. In most
+cases, you don't need the full ``stat_result`` object -- the ``is_X()``
+methods are enough and this information is already known.
 
 See `Ben Hoyt's July 2014 reply
 <https://mail.python.org/pipermail/python-dev/2014-July/135312.html>`_

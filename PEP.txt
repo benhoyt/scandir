@@ -418,7 +418,7 @@ and this `June 2014 python-dev thread on PEP 471
 Methods not following symlinks by default
 -----------------------------------------
 
-There was much debate on python-dev (for example, `this thread
+There was much debate on python-dev (see messages in `this thread
 <https://mail.python.org/pipermail/python-dev/2014-July/135485.html>`_)
 over whether the ``DirEntry`` methods should follow symbolic links or
 not. Initially they did not (see previous versions of this PEP and the
@@ -426,16 +426,16 @@ scandir.py module), but Victor Stinner made a pretty compelling case
 on python-dev that following symlinks by default is a better idea,
 because:
 
- * following links is usually what you want (in 92% of cases in the
-   standard library, functions using ``os.listdir()`` and
-   ``os.path.isdir()`` do follow symlinks)
- * that's the precedent set by the similar functions
-   ``os.path.isdir()`` and ``pathlib.Path.is_dir()``, so to do
-   otherwise would be confusing
- * with the non-link-following approach, if you wanted to follow links
-   you'd have to say something like ``if (entry.is_symlink() and
-   os.path.isdir(entry.full_name)) or entry.is_dir()`` instead of
-   just ``if entry.is_dir()``
+* following links is usually what you want (in 92% of cases in the
+  standard library, functions using ``os.listdir()`` and
+  ``os.path.isdir()`` do follow symlinks)
+* that's the precedent set by the similar functions
+  ``os.path.isdir()`` and ``pathlib.Path.is_dir()``, so to do
+  otherwise would be confusing
+* with the non-link-following approach, if you wanted to follow links
+  you'd have to say something like ``if (entry.is_symlink() and
+  os.path.isdir(entry.full_name)) or entry.is_dir()``, which is
+  clumsy
 
 As a case in point that shows the non-symlink-following version is
 error prone, this PEP's author had a bug caused by getting this
@@ -443,10 +443,13 @@ exact test wrong in his initial implementation of ``scandir.walk()``
 in scandir.py (see `Issue #4 here
 <https://github.com/benhoyt/scandir/issues/4>`_).
 
-In the end there was no total agreement on the above ()
+In the end there was not total agreement that the methods should
+follow symlinks, but there was basic consensus among the most involved
+participants, and this PEP's author believes that the above case is
+strong enough to warrant following symlinks by default.
 
-See some of the debate
-
+In addition, it's straight-forward to call the relevant methods with
+``follow_symlinks=False`` if the other behaviour is desired.
 
 
 DirEntry attributes being properties

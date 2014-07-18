@@ -87,11 +87,11 @@ Specifically, this PEP proposes adding a single function to the ``os``
 module in the standard library, ``scandir``, that takes a single,
 optional string as its argument::
 
-    scandir(path='.') -> generator of DirEntry objects
+    scandir(directory='.') -> generator of DirEntry objects
 
 Like ``listdir``, ``scandir`` calls the operating system's directory
-iteration system calls to get the names of the files in the ``path``
-directory, but it's different from ``listdir`` in two ways:
+iteration system calls to get the names of the files in the given
+``directory``, but it's different from ``listdir`` in two ways:
 
 * Instead of returning bare filename strings, it returns lightweight
   ``DirEntry`` objects that hold the filename string and provide
@@ -101,25 +101,24 @@ directory, but it's different from ``listdir`` in two ways:
 * It returns a generator instead of a list, so that ``scandir`` acts
   as a true iterator instead of returning the full list immediately.
 
-``scandir()`` yields a ``DirEntry`` object for each file and directory
-in ``path``. Just like ``listdir``, the ``'.'`` and ``'..'``
-pseudo-directories are skipped, and the entries are yielded in
-system-dependent order. Each ``DirEntry`` object has the following
-attributes and methods:
+``scandir()`` yields a ``DirEntry`` object for each file and
+sub-directory in ``directory``. Just like ``listdir``, the ``'.'``
+and ``'..'`` pseudo-directories are skipped, and the entries are
+yielded in system-dependent order. Each ``DirEntry`` object has the
+following attributes and methods:
 
-* ``name``: the entry's filename, relative to the ``path`` argument
-  (corresponds to the return values of ``os.listdir``)
+* ``name``: the entry's filename, relative to the ``directory``
+  argument (corresponds to the return values of ``os.listdir``)
 
-* ``full_name``: the entry's full path name (not necessarily
-  an absolute path) -- the equivalent of
-  ``os.path.join(path, entry.name)``
+* ``path``: the entry's full path name (not necessarily an absolute
+  path) -- the equivalent of ``os.path.join(directory, entry.name)``
 
-* ``is_dir(follow_symlinks=True)``: similar to
+* ``is_dir(*, follow_symlinks=True)``: similar to
   ``pathlib.Path.is_dir()``, but the return value is cached on the
   ``DirEntry`` object; doesn't require a system call in most cases;
   don't follow symbolic links if ``follow_symlinks`` is false
 
-* ``is_file(follow_symlinks=True)``: similar to
+* ``is_file(*, follow_symlinks=True)``: similar to
   ``pathlib.Path.is_file()``, but the return value is cached on the
   ``DirEntry`` object; doesn't require a system call in most cases; 
   don't follow symbolic links if ``follow_symlinks`` is false
@@ -128,10 +127,10 @@ attributes and methods:
   return value is cached on the ``DirEntry`` object; doesn't require a
   system call in most cases
 
-* ``stat(follow_symlinks=True)``: like ``os.stat()``, but the return
-  value is cached on the ``DirEntry`` object; only requires a system
-  call on some systems (POSIX); don't follow symbolic links (like
-  ``os.lstat()``) if ``follow_symlinks`` is false
+* ``stat(*, follow_symlinks=True)``: like ``os.stat()``, but the
+  return value is cached on the ``DirEntry`` object; only requires a
+  system call on some systems (POSIX); don't follow symbolic links
+  (like ``os.lstat()``) if ``follow_symlinks`` is false
 
 All *methods* may perform system calls in some cases and therefore
 possibly raise ``OSError`` -- see the "Notes on exception handling"
@@ -144,11 +143,11 @@ consistency. The only difference in functionality is that the
 first call.
 
 Like the other functions in the ``os`` module, ``scandir()`` accepts
-either a bytes or str object for the ``path`` parameter, and returns
-the ``DirEntry.name`` and ``DirEntry.full_name`` attributes with the
-same type as ``path``. However, it is *strongly recommended* to use
-the str type, as this ensures cross-platform support for Unicode
-filenames.
+either a bytes or str object for the ``directory`` parameter, and
+returns the ``DirEntry.name`` and ``DirEntry.path`` attributes with
+the same type as ``directory``. However, it is *strongly recommended*
+to use the str type, as this ensures cross-platform support for
+Unicode filenames.
 
 
 Examples
@@ -160,7 +159,7 @@ uses it::
 
     dirs = []
     non_dirs = []
-    for entry in os.scandir(path):
+    for entry in os.scandir(directory):
         if entry.is_dir():
             dirs.append(entry)
         else:
@@ -171,18 +170,24 @@ scandir than ``os.listdir()`` and ``os.path.isdir()`` on both Windows
 and POSIX systems.
 
 Or, for getting the total size of files in a directory tree, showing
-use of the ``DirEntry.stat()`` method and ``DirEntry.full_name``
+use of the ``DirEntry.stat()`` method and ``DirEntry.path``
 attribute::
 
-    def get_tree_size(path):
-        """Return total size of files in path and subdirs."""
+    def get_tree_size(directory):
+        """Return total size of files in directory and subdirs."""
         total = 0
-        for entry in os.scandir(path):
-            if entry.is_dir():
-                total += get_tree_size(entry.full_name)
+        for entry in os.scandir(directory):
+            if entry.is_dir(follow_symlinks=False):
+                total += get_tree_size(entry.path)
             else:
                 total += entry.stat().st_size
         return total
+
+This also shows the use of the ``follow_symlinks`` parameter to
+``is_dir()`` -- in a recursive function like this, we probably don't
+want to follow links. (To properly follow links in a recursive
+function like this we'd want special handling for the case where
+following a symlink leads to a recursive loop.)
 
 Note that ``get_tree_size()`` will get a huge speed boost on Windows,
 because no extra stat call are needed, but on POSIX systems the size
@@ -194,7 +199,7 @@ Notes on caching
 ----------------
 
 The ``DirEntry`` objects are relatively dumb -- the ``name`` and
-``full_name`` attributes are obviously always cached, and the ``is_X``
+``path`` attributes are obviously always cached, and the ``is_X``
 and ``stat`` methods cache their values (immediately on Windows via
 ``FindNextFile``, and on first use on POSIX systems via a ``stat``
 system call) and never refetch from the system.
@@ -241,20 +246,20 @@ appropriate.
 For example, below is a version of the ``get_tree_size()`` example
 shown above, but with fine-grained error handling added::
 
-    def get_tree_size(path):
-        """Return total size of files in path and subdirs. If
+    def get_tree_size(directory):
+        """Return total size of files in directory and subdirs. If
         is_dir() or stat() fails, print an error message to stderr
         and assume zero size (for example, file has been deleted).
         """
         total = 0
-        for entry in os.scandir(path):
+        for entry in os.scandir(directory):
             try:
-                is_dir = entry.is_dir()
+                is_dir = entry.is_dir(follow_symlinks=False)
             except OSError as error:
                 print('Error calling is_dir():', error, file=sys.stderr)
                 continue
             if is_dir:
-                total += get_tree_size(entry.full_name)
+                total += get_tree_size(entry.path)
             else:
                 try:
                     total += entry.stat().st_size
@@ -429,13 +434,14 @@ because:
 * following links is usually what you want (in 92% of cases in the
   standard library, functions using ``os.listdir()`` and
   ``os.path.isdir()`` do follow symlinks)
+
 * that's the precedent set by the similar functions
   ``os.path.isdir()`` and ``pathlib.Path.is_dir()``, so to do
   otherwise would be confusing
+
 * with the non-link-following approach, if you wanted to follow links
   you'd have to say something like ``if (entry.is_symlink() and
-  os.path.isdir(entry.full_name)) or entry.is_dir()``, which is
-  clumsy
+  os.path.isdir(entry.path)) or entry.is_dir()``, which is clumsy
 
 As a case in point that shows the non-symlink-following version is
 error prone, this PEP's author had a bug caused by getting this
@@ -482,8 +488,8 @@ In `this July 2014 python-dev message
 <https://mail.python.org/pipermail/python-dev/2014-July/135303.html>`_,
 Paul Moore suggested a solution that was a "thin wrapper round the OS
 feature", where the ``DirEntry`` object had only static attributes:
-``name``, ``full_name``, and ``is_X``, with the ``st_X`` attributes
-only present on Windows. The idea was to use this simpler, lower-level
+``name``, ``path``, and ``is_X``, with the ``st_X`` attributes only
+present on Windows. The idea was to use this simpler, lower-level
 function as a building block for higher-level functions.
 
 At first there was general agreement that simplifying in this way was
@@ -519,12 +525,12 @@ because ``stat()`` will be called (and hence potentially raise
 ``OSError``) during iteration, leading to a rather ugly, hand-made
 iteration loop::
 
-    it = os.scandir(path)
+    it = os.scandir(directory)
     while True:
         try:
             entry = next(it)
         except OSError as error:
-            handle_error(path, error)
+            handle_error(directory, error)
         except StopIteration:
             break
 
@@ -573,7 +579,7 @@ Return values being overloaded stat_result objects
 --------------------------------------------------
 
 Another alternative discussed was making the return values to be
-overloaded ``stat_result`` objects with ``name`` and ``full_name``
+overloaded ``stat_result`` objects with ``name`` and ``path``
 attributes. However, apart from this being a strange (and strained!)
 kind of overloading, this has the same problems mentioned above --
 most of the ``stat_result`` information is not fetched by

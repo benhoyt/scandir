@@ -165,21 +165,20 @@ mentioned above, by 2-20 times, depending on the system).
 Examples
 ========
 
-Below is a good usage pattern for ``scandir``. This is in fact almost
-exactly how the scandir module's faster ``os.walk()`` implementation
-uses it::
+First, two very simple examples of ``scandir()`` showing use of the
+``DirEntry.name`` attribute and the ``DirEntry.is_dir()`` method::
 
-    dirs = []
-    non_dirs = []
-    for entry in os.scandir(directory):
-        if entry.is_dir():
-            dirs.append(entry)
-        else:
-            non_dirs.append(entry)
+    def subdirs(path):
+        """Return a generator of directory names under the given path."""
+        return (e.name for e in scandir(path) if e.is_dir())
 
-The above ``os.walk()``-like code will be significantly faster with
-scandir than ``os.listdir()`` and ``os.path.isdir()`` on both Windows
-and POSIX systems.
+    def listdir(path):
+        """Equivalent of os.listdir() written using scandir()."""
+        return [e.name for e in scandir(path)]
+
+The ``subdirs()`` function above will be significantly faster with scandir
+than ``os.listdir()`` and ``os.path.isdir()`` on both Windows and POSIX
+systems, especially on medium-sized or large directories.
 
 Or, for getting the total size of files in a directory tree, showing
 use of the ``DirEntry.stat()`` method and ``DirEntry.path``

@@ -71,12 +71,12 @@ class TestScandir(unittest.TestCase):
         self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY,
                          scandir.FILE_ATTRIBUTE_DIRECTORY)
 
-    def test_full_name(self):
+    def test_path(self):
         entries = sorted(scandir.scandir(test_path), key=lambda e: e.name)
         self.assertEqual([(os.path.basename(e.name), e.is_dir()) for e in entries],
                          [('file1.txt', False), ('file2.txt', False), ('subdir', True)])
         self.assertEqual([os.path.normpath(os.path.join(test_path, e.name)) for e in entries],
-                         [os.path.normpath(e.full_name) for e in entries])
+                         [os.path.normpath(e.path) for e in entries])
 
 
 class TestSymlink(unittest.TestCase):

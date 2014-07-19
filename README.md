@@ -33,7 +33,7 @@ of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
 **In practice, removing all those extra system calls makes `os.walk()` about
-8-9 times as fast on Windows, and about 2-3 times as fast on Linux and Mac OS
+7-20 times as fast on Windows, and about 4-5 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. [See more benchmarks
 below.](#benchmarks)
 
@@ -111,48 +111,69 @@ The `scandir()` function is the scandir module's main workhorse. It's defined
 as follows:
 
 ```python
-scandir(path='.') -> iterator of DirEntry objects
+scandir(directory='.') -> generator of DirEntry objects
 ```
 
-It yields a DirEntry for each file and directory in `path`. Like os.listdir(),
-`.` and `..` are skipped, and the entries are yielded in system-dependent
-order. Each DirEntry object has the following attributes and methods:
+Like `listdir`, `scandir` calls the operating system's directory
+iteration system calls to get the names of the files in the given
+`directory`, but it's different from `listdir` in two ways:
 
-* `name`: this entry's filename relative to path (like the string
-   returned by os.listdir)
-* `full_name`: this entry's full path name, equivalent to
-   `os.path.join(path, entry.name)`
-* `is_dir()`: return True iff this directory entry is a directory, but
-   requires no OS calls on most systems (note: doesn't follow symlinks)
-* `is_file()`: return True iff this directory entry is a file, but
-   requires no OS calls on most systems (note: doesn't follow symlinks)
-* `is_symlink()`: return True iff this directory entry is a symbolic
-   link, but requires no OS calls on most systems
-* `lstat()`: like os.lstat(), but requires no OS calls on Windows
+* Instead of returning bare filename strings, it returns lightweight
+  `DirEntry` objects that hold the filename string and provide
+  simple methods that allow access to the additional data the
+  operating system may have returned.
 
-The `is_X()` functions may call `lstat()` on some systems, so if you
-want fine-grained error handling of this you should catch `OSError`
-around the calls.
+* It returns a generator instead of a list, so that `scandir` acts
+  as a true iterator instead of returning the full list immediately.
 
-On systems where `is_X()` or `lstat()` does make a system call, the
-stat result is cached after the first call and never fetched again.
-This is in contrast to the `os.path.isX()` and `pathlib.Path.is_X()`
-functions -- scandir's `DirEntry` objects aren't intended to monitor
-changing stat info over time. Just use the `os.path` or `pathlib`
-functions if you want that behaviour.
+`scandir()` yields a `DirEntry` object for each file and
+sub-directory in `directory`. Just like `listdir`, the `'.'`
+and `'..'` pseudo-directories are skipped, and the entries are
+yielded in system-dependent order. Each `DirEntry` object has the
+following attributes and methods:
 
-Here's a good usage pattern for `scandir`. This is in fact almost exactly how
-the faster `os.walk()` implementation uses it:
+* `name`: the entry's filename, relative to the `directory`
+  argument (corresponds to the return values of `os.listdir`)
+
+* `path`: the entry's full path name (not necessarily an absolute
+  path) -- the equivalent of `os.path.join(directory, entry.name)`
+
+* `is_dir(*, follow_symlinks=True)`: similar to
+  `pathlib.Path.is_dir()`, but the return value is cached on the
+  `DirEntry` object; doesn't require a system call in most cases;
+  don't follow symbolic links if `follow_symlinks` is False
+
+* `is_file(*, follow_symlinks=True)`: similar to
+  `pathlib.Path.is_file()`, but the return value is cached on the
+  `DirEntry` object; doesn't require a system call in most cases; 
+  don't follow symbolic links if `follow_symlinks` is False
+
+* `is_symlink()`: similar to `pathlib.Path.is_symlink()`, but the
+  return value is cached on the `DirEntry` object; doesn't require a
+  system call in most cases
+
+* `stat(*, follow_symlinks=True)`: like `os.stat()`, but the
+  return value is cached on the `DirEntry` object; does not require a
+  system call on Windows (except for symlinks); don't follow symbolic links
+  (like `os.lstat()`) if `follow_symlinks` is False
+
+Here's a very simple example of `scandir()` showing use of the
+`DirEntry.name` attribute and the `DirEntry.is_dir()` method:
 
 ```python
-dirs = []
-nondirs = []
-for entry in scandir(path):
-    if entry.is_dir():
-        dirs.append(entry)
-    else:
-        nondirs.append(entry)
+def subdirs(path):
+    """Yield directory names not starting with '.' under given path."""
+    for entry in scandir.scandir(path):
+        if not entry.name.startswith('.') and entry.is_dir():
+            yield entry.name
 ```
+
+This `subdirs()` function will be significantly faster with scandir
+than `os.listdir()` and `os.path.isdir()` on both Windows and POSIX
+systems, especially on medium-sized or large directories.
+
+See [PEP 471](http://legacy.python.org/dev/peps/pep-0471/) for more
+details on caching and error handling.
 
 
 Further reading

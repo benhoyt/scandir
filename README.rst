@@ -66,21 +66,19 @@ Benchmarks
 
 Below are results showing how many times as fast ``scandir.walk()`` is than
 ``os.walk()`` on various systems, found by running ``benchmark.py`` with no
-arguments as well as with the ``-s`` argument (which totals the directory size).
+arguments as well as with the ``-s`` argument (which totals the directory size)::
 
-```
-System version          Python version  Speed ratio    With -s
---------------------------------------------------------------
-Windows 7 64-bit        2.7.5 64-bit    7.5            14.2
-Windows 7 64-bit SSD    2.7.6 64-bit    10.0           18.5
-Windows 7 64-bit NFS    2.7.6 64-bit    23.2           46.4
-Windows 7 64-bit        3.4.1 64-bit    TODO
+    System version          Python version  Speed ratio    With -s
+    --------------------------------------------------------------
+    Windows 7 64-bit        2.7.5 64-bit    7.5            14.2
+    Windows 7 64-bit SSD    2.7.6 64-bit    10.0           18.5
+    Windows 7 64-bit NFS    2.7.6 64-bit    23.2           46.4
+    Windows 7 64-bit        3.4.1 64-bit    TODO
 
-CentOS 6.5 64-bit       2.7.6 64-bit    5.5            2.3
-Ubuntu 12.04 32-bit     2.7.3 32-bit    4.3            2.2
+    CentOS 6.5 64-bit       2.7.6 64-bit    5.5            2.3
+    Ubuntu 12.04 32-bit     2.7.3 32-bit    4.3            2.2
 
-Mac OS X 10.9.3         2.7.5 64-bit    5.3            2.1
-```
+    Mac OS X 10.9.3         2.7.5 64-bit    5.3            2.1
 
 All of the above tests were done using the version of scandir with the fast C
 ``scandir_helper()`` function.

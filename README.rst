@@ -1,5 +1,5 @@
-scandir, a better directory iterator that returns all file info the OS provides
-===============================================================================
+scandir, a better directory iterator
+====================================
 
 **UPDATE: I've written a Python Enhancement Proposal (PEP) that proposes
 including scandir() in the standard library.** Please read
@@ -98,12 +98,14 @@ times as fast.
 The API
 -------
 
-### walk()
+walk()
+~~~~~~
 
 The API for ``scandir.walk()`` is exactly the same as ``os.walk()``, so just
 `read the Python docs <http://docs.python.org/2/library/os.html#os.walk>`_.
 
-### scandir()
+scandir()
+~~~~~~~~~
 
 The ``scandir()`` function is the scandir module's main workhorse. It's defined
 as follows::

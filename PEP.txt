@@ -165,18 +165,16 @@ mentioned above, by 2-20 times, depending on the system).
 Examples
 ========
 
-First, two very simple examples of ``scandir()`` showing use of the
+First, a very simple example of ``scandir()`` showing use of the
 ``DirEntry.name`` attribute and the ``DirEntry.is_dir()`` method::
 
     def subdirs(path):
-        """Return a generator of directory names under the given path."""
-        return (e.name for e in scandir(path) if e.is_dir())
+        """Yield directory names not starting with '.' under given path."""
+        for entry in os.scandir(path):
+            if not entry.name.startswith('.') and entry.is_dir():
+                yield entry.name
 
-    def listdir(path):
-        """Equivalent of os.listdir() written using scandir()."""
-        return [e.name for e in scandir(path)]
-
-The ``subdirs()`` function above will be significantly faster with scandir
+This ``subdirs()`` function will be significantly faster with scandir
 than ``os.listdir()`` and ``os.path.isdir()`` on both Windows and POSIX
 systems, especially on medium-sized or large directories.
 

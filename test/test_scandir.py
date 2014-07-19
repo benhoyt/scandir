@@ -29,14 +29,14 @@ class TestScandir(unittest.TestCase):
         e = entries['subdir']
         self.assertEquals([e.is_dir(), e.is_file(), e.is_symlink()], [True, False, False])
 
-        self.assertEquals(entries['file1.txt'].lstat().st_size, 4)
-        self.assertEquals(entries['file2.txt'].lstat().st_size, 8)
+        self.assertEquals(entries['file1.txt'].stat().st_size, 4)
+        self.assertEquals(entries['file2.txt'].stat().st_size, 8)
 
     def test_stat(self):
         entries = list(scandir.scandir(test_path))
         for entry in entries:
-            os_stat = os.lstat(os.path.join(test_path, entry.name))
-            scandir_stat = entry.lstat()
+            os_stat = os.stat(os.path.join(test_path, entry.name))
+            scandir_stat = entry.stat()
             self.assertEquals(os_stat.st_mode, scandir_stat.st_mode)
             self.assertEquals(int(os_stat.st_mtime), int(scandir_stat.st_mtime))
             self.assertEquals(int(os_stat.st_ctime), int(scandir_stat.st_ctime))
@@ -61,12 +61,12 @@ class TestScandir(unittest.TestCase):
         entries = dict((e.name, e) for e in scandir.scandir(test_path))
 
         # test st_file_attributes on a file (FILE_ATTRIBUTE_DIRECTORY not set)
-        result = entries['file1.txt'].lstat()
+        result = entries['file1.txt'].stat()
         self.check_file_attributes(result)
         self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY, 0)
 
         # test st_file_attributes on a directory (FILE_ATTRIBUTE_DIRECTORY set)
-        result = entries['subdir'].lstat()
+        result = entries['subdir'].stat()
         self.check_file_attributes(result)
         self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY,
                          scandir.FILE_ATTRIBUTE_DIRECTORY)
@@ -113,3 +113,5 @@ class TestSymlink(unittest.TestCase):
                          [('file1.txt', False), ('file2.txt', False),
                           ('link_to_dir', True), ('link_to_file', True),
                           ('subdir', False)])
+
+    # TODO ben: add tests for follow_symlinks parameters

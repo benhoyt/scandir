@@ -117,10 +117,10 @@ def get_tree_size(path):
     size = 0
     try:
         for entry in scandir.scandir(path):
-            if entry.is_dir():
+            if entry.is_dir(follow_symlinks=False):
                 size += get_tree_size(os.path.join(path, entry.name))
             else:
-                size += entry.lstat().st_size
+                size += entry.stat(follow_symlinks=False).st_size
     except OSError:
         pass
     return size

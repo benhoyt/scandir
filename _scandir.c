@@ -409,7 +409,7 @@ HANDLE *p_handle;
         return PyErr_SetFromWindowsErr(GetLastError());
     }
     else {
-        return Py_BuildValue("u#O",
+        return Py_BuildValue("u#N",
                             data.cFileName, wcslen(data.cFileName),
                             file_data);
     }

@@ -54,6 +54,8 @@ path_cleanup(path_t *path) {
     if (path->cleanup) {
         Py_CLEAR(path->cleanup);
     }
+    free(path->wide);
+    free(path->narrow);
 }
 
 #ifdef MS_WINDOWS

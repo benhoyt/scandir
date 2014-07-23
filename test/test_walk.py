@@ -9,6 +9,7 @@ import scandir
 
 walk_func = scandir.walk
 
+
 class TestWalk(unittest.TestCase):
     testfn = os.path.join(os.path.dirname(__file__), 'temp')
 
@@ -149,7 +150,8 @@ class TestWalkSymlink(unittest.TestCase):
             return
 
         try:
-            os.symlink(self.file_name, os.path.join(self.temp_dir, 'link_to_file'))
+            os.symlink(self.file_name, os.path.join(self.temp_dir,
+                                                    'link_to_file'))
         except NotImplementedError:
             # Windows versions before Vista don't support symbolic links
             return

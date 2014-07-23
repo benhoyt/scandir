@@ -69,6 +69,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 else:
     os_listdir = os.listdir
 
+
 def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """Identical to os.walk(), but use ctypes-based listdir() so benchmark
     against ctypes-based scandir() is valid.
@@ -97,6 +98,7 @@ def os_walk(top, topdown=True, onerror=None, followlinks=False):
     if not topdown:
         yield top, dirs, nondirs
 
+
 def create_tree(path, depth=DEPTH):
     """Create a directory tree at path with given depth, and NUM_DIRS and
     NUM_FILES at each level.
@@ -112,6 +114,7 @@ def create_tree(path, depth=DEPTH):
         dirname = os.path.join(path, 'dir{0:03}'.format(i))
         create_tree(dirname, depth - 1)
 
+
 def get_tree_size(path):
     """Return total size of all files in directory tree at path."""
     size = 0
@@ -124,6 +127,7 @@ def get_tree_size(path):
     except OSError:
         pass
     return size
+
 
 def benchmark(path, get_size=False):
     sizes = {}
@@ -161,7 +165,8 @@ def benchmark(path, get_size=False):
         print('Benchmarking walks on {0}, repeat {1}/{2}...'.format(
             path, i + 1, N))
         os_walk_time = min(os_walk_time, timeit.timeit(do_os_walk, number=1))
-        scandir_walk_time = min(scandir_walk_time, timeit.timeit(do_scandir_walk, number=1))
+        scandir_walk_time = min(scandir_walk_time,
+                                timeit.timeit(do_scandir_walk, number=1))
 
     if get_size:
         if sizes['os_walk'] == sizes['scandir_walk']:
@@ -173,6 +178,7 @@ def benchmark(path, get_size=False):
 
     print('os.walk took {0:.3f}s, scandir.walk took {1:.3f}s -- {2:.1f}x as fast'.format(
           os_walk_time, scandir_walk_time, os_walk_time / scandir_walk_time))
+
 
 def main():
     """Usage: benchmark.py [-h] [tree_dir]

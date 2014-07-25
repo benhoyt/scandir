@@ -14,6 +14,7 @@ try:
 except NameError:
     long = int
 
+
 class TestScandir(unittest.TestCase):
     def test_basic(self):
         entries = sorted(scandir.scandir(test_path), key=lambda e: e.name)

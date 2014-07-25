@@ -105,7 +105,7 @@ path_converter(PyObject *o, void *p) {
         return 1;
     }
 
-	unicode = PyUnicode_FromObject(o);
+    unicode = PyUnicode_FromObject(o);
     if (unicode) {
 #ifdef MS_WINDOWS
         wchar_t *wide;
@@ -587,20 +587,20 @@ PyObject *iterator;
     }
 
    if (path.wide) {
-		wchar_t *filepath;
+        wchar_t *filepath;
 
-       /* Reallocate for additional backslash and wildcard */
-       filepath = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 3));
-		if (filepath == NULL)
+        /* Reallocate for additional backslash and wildcard */
+        filepath = (wchar_t *)malloc(sizeof(wchar_t) * (path.length + 3));
+        if (filepath == NULL)
             return PyErr_NoMemory();
-		wcscpy(filepath, path.wide);
-		if ((path.wide[path.length] != L'\\') && (path.wide[path.length] != L'/')) {
-	        wcscat(filepath, L"/");
-		}
+        wcscpy(filepath, path.wide);
+        if ((path.wide[path.length] != L'\\') && (path.wide[path.length] != L'/')) {
+            wcscat(filepath, L"/");
+        }
 #ifdef MS_WINDOWS
         wcscat(filepath, L"*");
 #endif
-		path.wide = filepath;
+        path.wide = filepath;
         path.length = wcslen(path.wide);
     }
     if (path.narrow) {
@@ -610,13 +610,13 @@ PyObject *iterator;
         if (filepath == NULL)
             return PyErr_NoMemory();
         strcpy(filepath, path.narrow);
-		if ((path.narrow[path.length] != '\\') && (path.narrow[path.length] != '/')) {
-	        strcat(filepath, "/");
-		}
+        if ((path.narrow[path.length] != '\\') && (path.narrow[path.length] != '/')) {
+            strcat(filepath, "/");
+        }
 #ifdef MS_WINDOWS
         strcat(filepath, "*");
 #endif
-		path.narrow = filepath;
+        path.narrow = filepath;
         path.length = strlen(path.narrow);
     }
 

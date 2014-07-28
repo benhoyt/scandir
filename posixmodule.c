@@ -3575,10 +3575,10 @@ _listdir_windows_no_opendir(path_t *path, PyObject *list)
     BOOL result;
     WIN32_FIND_DATA FileData;
     char namebuf[MAX_PATH+4]; /* Overallocate for "\*.*" */
-    char *bufptr = namebuf;
+    char *bufptr = namebuf;  /* TODO ben: this is not used */
     /* only claim to have space for MAX_PATH */
-    Py_ssize_t len = Py_ARRAY_LENGTH(namebuf)-4;
-    PyObject *po = NULL;
+    Py_ssize_t len = Py_ARRAY_LENGTH(namebuf)-4;  /* TODO ben: this value is not used */
+    PyObject *po = NULL;  /* TODO ben: this is not used */
     wchar_t *wnamebuf = NULL;
 
     if (!path->narrow) {
@@ -11145,6 +11145,432 @@ posix_set_handle_inheritable(PyObject *self, PyObject *args)
 }
 #endif   /* MS_WINDOWS */
 
+/* BEGIN os.scandir() ******************************************** */
+
+/*
+Ben's notes:
+
+* directory should be path -- it just doesn't make sense for it to be
+  a different name than listdir() for the sake of avoiding confusion
+  with the DirEntry.path attribute -- I don't think that's an issue
+
+* change "generator of DirEntry objects" -> "iterator of DirEntry objects"
+*/
+
+#include "structmember.h"  // TODO ben: for READONLY
+
+PyDoc_STRVAR(posix_scandir__doc__,
+"scandir(path='.') -> iterator of DirEntry objects for given path");
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *name;
+    PyObject *path; // TOOD ben: make this lazy?
+    PyObject *stat;
+    PyObject *lstat;
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    struct win32_stat win32_lstat;
+#else
+    unsigned char d_type;
+#endif
+} DirEntry;
+
+static void
+DirEntry_dealloc(DirEntry *entry)
+{
+    /* TODO ben: non-X DECREF for any of these? */
+    Py_XDECREF(entry->name);
+    Py_XDECREF(entry->path);
+    Py_XDECREF(entry->stat);
+    Py_XDECREF(entry->lstat);
+    Py_TYPE(entry)->tp_free((PyObject *)entry);
+}
+
+// TODO ben: add follow_symlinks argument
+static PyObject *
+DirEntry_is_dir(DirEntry *self)
+{
+    return PyBool_FromLong(self->win32_lstat.st_file_attributes &
+                           FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static PyObject *
+DirEntry_is_file(DirEntry *self)
+{
+    return PyBool_FromLong(!(self->win32_lstat.st_file_attributes &
+                             FILE_ATTRIBUTE_DIRECTORY));
+}
+
+static PyObject *
+DirEntry_is_symlink(DirEntry *self)
+{
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    return PyBool_FromLong(self->win32_lstat.st_file_attributes &
+                           FILE_ATTRIBUTE_REPARSE_POINT);
+#else
+    // TODO ben
+#endif
+}
+
+static PyObject *
+DirEntry_stat(DirEntry *self)
+{
+    if (!self->lstat) {
+        self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+    }
+    Py_XINCREF(self->lstat);
+    return self->lstat;
+}
+
+static PyMemberDef DirEntry_members[] = {
+    {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
+     "this entry's filename, relative to scandir()'s \"path\" argument"},
+    {"path", T_OBJECT_EX, offsetof(DirEntry, path), READONLY,
+     "this entry's full path name, equivalent of os.path.join(scandir_path, entry.name)"},
+    {NULL}
+};
+
+static PyMethodDef DirEntry_methods[] = {
+    {"is_dir", (PyCFunction)DirEntry_is_dir, METH_NOARGS,
+     "return True if this entry is a directory; cached per entry"
+    },
+    {"is_file", (PyCFunction)DirEntry_is_file, METH_NOARGS,
+     "return True if this entry is a file; cached per entry"
+    },
+    {"is_symlink", (PyCFunction)DirEntry_is_symlink, METH_NOARGS,
+     "return True if this entry is a symbolic link; cached per entry"
+    },
+    {"stat", (PyCFunction)DirEntry_stat, METH_NOARGS,
+     "return stat_result object for this entry; cached per entry"
+    },
+    {NULL}
+};
+
+PyTypeObject DirEntryType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "DirEntry",                             /* tp_name */
+    sizeof(DirEntry),                       /* tp_basicsize */
+    0,                                      /* tp_itemsize */
+    /* methods */
+    (destructor)DirEntry_dealloc,           /* tp_dealloc */
+    0,                                      /* tp_print */
+    0,                                      /* tp_getattr */
+    0,                                      /* tp_setattr */
+    0,                                      /* tp_compare */
+    0,                                      /* tp_repr */
+    0,                                      /* tp_as_number */
+    0,                                      /* tp_as_sequence */
+    0,                                      /* tp_as_mapping */
+    0,                                      /* tp_hash */
+    0,                                      /* tp_call */
+    0,                                      /* tp_str */
+    0,                                      /* tp_getattro */
+    0,                                      /* tp_setattro */
+    0,                                      /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                     /* tp_flags */
+    0,/* TODO ben */                        /* tp_doc */
+    0,                                      /* tp_traverse */
+    0,                                      /* tp_clear */
+    0,                                      /* tp_richcompare */
+    0,                                      /* tp_weaklistoffset */
+    0,                                      /* tp_iter */
+    0,                                      /* tp_iternext */
+    DirEntry_methods,                       /* tp_methods */
+    DirEntry_members,                       /* tp_members */
+};
+
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+static void
+find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
+{
+    /* Note: data argument can point to a WIN32_FIND_DATAW or a
+       WIN32_FIND_DATAA struct, as the first members are in the same
+       position, and cFileName is not used
+    */
+    memset(result, 0, sizeof(*result));
+
+    result->st_mode = attributes_to_mode(data->dwFileAttributes);
+    if (data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+        /* first clear the S_IFMT bits */
+        result->st_mode ^= (result->st_mode & S_IFMT);
+        /* now set the bits that make this a symlink */
+        result->st_mode |= S_IFLNK;
+    }
+
+    result->st_size = (((__int64)data->nFileSizeHigh)<<32) + data->nFileSizeLow;
+
+    FILE_TIME_to_time_t_nsec(&data->ftCreationTime, &result->st_ctime, &result->st_ctime_nsec);
+    FILE_TIME_to_time_t_nsec(&data->ftLastWriteTime, &result->st_mtime, &result->st_mtime_nsec);
+    FILE_TIME_to_time_t_nsec(&data->ftLastAccessTime, &result->st_atime, &result->st_atime_nsec);
+
+    result->st_file_attributes = data->dwFileAttributes;
+}
+
+static PyObject *
+make_DirEntry(path_t *path, WIN32_FIND_DATAW *data)
+{
+    DirEntry *entry;
+    entry = PyObject_New(DirEntry, &DirEntryType);
+    if (entry == NULL) {
+        // TODO ben: error handling?
+        return NULL;
+    }
+
+    if (!path->narrow) {
+        Py_ssize_t filename_len;
+        Py_ssize_t path_len;
+        wchar_t *wnamebuf;
+        wchar_t *po_wchars;
+
+        filename_len = wcslen(data->cFileName);
+        entry->name = PyUnicode_FromWideChar(data->cFileName, filename_len);
+        entry->path = NULL;
+
+        if (!path->wide) { /* Default arg: "." */
+            po_wchars = L".";
+            path_len = 1;
+        }
+        else {
+            po_wchars = path->wide;
+            path_len = wcslen(path->wide);
+        }
+        /* The +2 is for the path separator and the NUL */
+        wnamebuf = PyMem_Malloc((path_len + filename_len + 2) * sizeof(wchar_t));
+        if (!wnamebuf) {
+            return PyErr_NoMemory();
+        }
+        wcscpy(wnamebuf, po_wchars);
+        if (path_len > 0) {
+            wchar_t wch = wnamebuf[path_len-1];
+            if (wch != SEP && wch != ALTSEP && wch != L':')
+                wnamebuf[path_len++] = SEP;
+            wcscpy(wnamebuf + path_len, data->cFileName);
+        }
+        entry->path = PyUnicode_FromWideChar(wnamebuf, path_len + filename_len);
+
+        PyMem_Free(wnamebuf);
+    }
+    else {
+        // TODO ben
+    }
+    entry->stat = NULL;
+    entry->lstat = NULL;
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    find_data_to_stat(data, &entry->win32_lstat);
+#else
+    entry->d_type = DT_UNKNOWN;
+#endif
+
+    return (PyObject *)entry;
+}
+#endif
+
+typedef struct {
+    PyObject_HEAD
+    path_t path;
+    int yield_name;
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    HANDLE handle;
+#else
+    DIR *dirp;
+#endif
+} ScandirIterator;
+
+static void
+ScandirIterator_dealloc(PyObject *py_iterator)
+{
+    ScandirIterator *iterator = (ScandirIterator *)py_iterator;
+
+    if (iterator == NULL) {  // TODO ben: is this needed?
+        return;
+    }
+
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    if (iterator->handle != INVALID_HANDLE_VALUE) {
+        Py_BEGIN_ALLOW_THREADS
+        FindClose(iterator->handle);  // TODO ben: handle errors
+        Py_END_ALLOW_THREADS
+    }
+#else
+    if (iterator->dirp != NULL) {
+        Py_BEGIN_ALLOW_THREADS
+        closedir(iterator->dirp);  // TODO ben: handle errors
+        Py_END_ALLOW_THREADS
+    }
+#endif
+
+    path_cleanup(&iterator->path);
+    PyObject_Del(iterator);
+}
+
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+static PyObject *
+ScandirIterator_iternext(PyObject *py_iterator)
+{
+    ScandirIterator *iterator = (ScandirIterator *)py_iterator;
+    WIN32_FIND_DATAW wFileData;
+    wchar_t *wnamebuf = NULL;
+
+    while (1) {
+        if (iterator->handle == INVALID_HANDLE_VALUE) {
+            /* First time around, prepare path and call FindFirstFile */
+            if (!iterator->path.narrow) {
+                Py_ssize_t len;
+                wchar_t *po_wchars;
+
+                if (!iterator->path.wide) { /* Default arg: "." */
+                    po_wchars = L".";
+                    len = 1;
+                }
+                else {
+                    po_wchars = iterator->path.wide;
+                    len = wcslen(iterator->path.wide);
+                }
+                /* The +5 is so we can append "\\*.*\0" */
+                wnamebuf = PyMem_Malloc((len + 5) * sizeof(wchar_t));
+                if (!wnamebuf) {
+                    return PyErr_NoMemory();
+                }
+                wcscpy(wnamebuf, po_wchars);
+                if (len > 0) {
+                    wchar_t wch = wnamebuf[len-1];
+                    if (wch != SEP && wch != ALTSEP && wch != L':')
+                        wnamebuf[len++] = SEP;
+                    wcscpy(wnamebuf + len, L"*.*");
+                }
+            }
+            else {
+                // TODO ben
+                char namebuf[MAX_PATH+4]; /* Overallocate for "\*.*" */
+                /* only claim to have space for MAX_PATH */
+
+                Py_ssize_t len = iterator->path.length;
+                strcpy(namebuf, iterator->path.narrow);
+                if (len > 0) {
+                    char ch = namebuf[len-1];
+                    if (ch != '\\' && ch != '/' && ch != ':')
+                        namebuf[len++] = '\\';
+                    strcpy(namebuf + len, "*.*");
+                }
+            }
+
+            Py_BEGIN_ALLOW_THREADS
+            iterator->handle = FindFirstFileW(wnamebuf, &wFileData);
+            Py_END_ALLOW_THREADS
+
+            // We're done with wnamebuf now
+            PyMem_Free(wnamebuf);
+
+            if (iterator->handle == INVALID_HANDLE_VALUE) {
+                // TODO ben: is it bad that iterator->handle == INVALID_HANDLE_VALUE in this case?
+                if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+                    // TODO ben: check that we raise FileNotFoundError if path doesn't exist
+                    return path_error(&iterator->path);
+                }
+                /* No files found, stop iterating */
+                PyErr_SetNone(PyExc_StopIteration);
+                return NULL;
+            }
+        }
+        else {
+            BOOL result;
+
+            Py_BEGIN_ALLOW_THREADS
+            result = FindNextFileW(iterator->handle, &wFileData);
+            Py_END_ALLOW_THREADS
+
+            if (!result) {
+                if (GetLastError() != ERROR_NO_MORE_FILES) {
+                    return path_error(&iterator->path);
+                }
+                /* No more files found in directory, stop iterating */
+                PyErr_SetNone(PyExc_StopIteration);
+                return NULL;
+            }
+        }
+
+        /* Skip over . and .. */
+        if (wcscmp(wFileData.cFileName, L".") != 0 &&
+            wcscmp(wFileData.cFileName, L"..") != 0) {
+            if (iterator->yield_name) {
+                return PyUnicode_FromWideChar(wFileData.cFileName,
+                                              wcslen(wFileData.cFileName));
+            }
+            else {
+                /* TODO ben: error handling? */
+                return make_DirEntry(&iterator->path, &wFileData);
+            }
+        }
+
+        /* Loop till we get a non-dot directory or finish iterating */
+    }
+}
+#else // POSIX
+#endif
+
+PyTypeObject ScandirIteratorType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "ScandirIterator",                      /* tp_name */
+    sizeof(ScandirIterator),                /* tp_basicsize */
+    0,                                      /* tp_itemsize */
+    /* methods */
+    (destructor)ScandirIterator_dealloc,    /* tp_dealloc */
+    0,                                      /* tp_print */
+    0,                                      /* tp_getattr */
+    0,                                      /* tp_setattr */
+    0,                                      /* tp_compare */
+    0,                                      /* tp_repr */
+    0,                                      /* tp_as_number */
+    0,                                      /* tp_as_sequence */
+    0,                                      /* tp_as_mapping */
+    0,                                      /* tp_hash */
+    0,                                      /* tp_call */
+    0,                                      /* tp_str */
+    0,                                      /* tp_getattro */
+    0,                                      /* tp_setattro */
+    0,                                      /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                     /* tp_flags */
+    0,                                      /* tp_doc */
+    0,                                      /* tp_traverse */
+    0,                                      /* tp_clear */
+    0,                                      /* tp_richcompare */
+    0,                                      /* tp_weaklistoffset */
+    PyObject_SelfIter,                      /* tp_iter */
+    (iternextfunc)ScandirIterator_iternext, /* tp_iternext */
+};
+
+static PyObject *
+posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    ScandirIterator *iterator;
+    static char *keywords[] = {"path", NULL};
+
+    iterator = PyObject_New(ScandirIterator, &ScandirIteratorType);
+    if (iterator == NULL) {
+        return NULL;
+    }
+    iterator->yield_name = 0;
+    memset(&iterator->path, 0, sizeof(path_t));
+    iterator->path.function_name = "scandir";
+    iterator->path.nullable = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O&:scandir", keywords,
+                                     path_converter, &iterator->path)) {
+        Py_DECREF(iterator);
+        return NULL;
+    }
+
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    iterator->handle = INVALID_HANDLE_VALUE;
+#else
+    iterator->dirp = NULL;
+#endif
+
+    return (PyObject *)iterator;
+}
+
+/* END os.scandir() ********************************************** */
+
 
 /*[clinic input]
 dump buffer
@@ -11245,6 +11671,9 @@ static PyMethodDef posix_methods[] = {
     {"rmdir",           (PyCFunction)posix_rmdir,
                         METH_VARARGS | METH_KEYWORDS,
                         posix_rmdir__doc__},
+    {"scandir",         (PyCFunction)posix_scandir,
+                        METH_VARARGS | METH_KEYWORDS,
+                        posix_scandir__doc__},
     {"stat_float_times", stat_float_times, METH_VARARGS, stat_float_times__doc__},
 #if defined(HAVE_SYMLINK)
     {"symlink",         (PyCFunction)posix_symlink,
@@ -12276,6 +12705,12 @@ INITFUNC(void)
         /* initialize TerminalSize_info */
         if (PyStructSequence_InitType2(&TerminalSizeType,
                                        &TerminalSize_desc) < 0)
+            return NULL;
+
+        /* initialize scandir types */
+        if (PyType_Ready(&ScandirIteratorType) < 0)
+            return NULL;
+        if (PyType_Ready(&DirEntryType) < 0)
             return NULL;
     }
 #if defined(HAVE_WAITID) && !defined(__APPLE__)

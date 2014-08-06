@@ -11165,7 +11165,7 @@ PyDoc_STRVAR(posix_scandir__doc__,
 typedef struct {
     PyObject_HEAD
     PyObject *name;
-    PyObject *path; // TOOD ben: make this lazy?
+    PyObject *path; // TODO ben: make this lazy?
     PyObject *stat;
     PyObject *lstat;
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
@@ -11186,40 +11186,128 @@ DirEntry_dealloc(DirEntry *entry)
     Py_TYPE(entry)->tp_free((PyObject *)entry);
 }
 
-// TODO ben: add follow_symlinks argument
-static PyObject *
-DirEntry_is_dir(DirEntry *self)
-{
-    return PyBool_FromLong(self->win32_lstat.st_file_attributes &
-                           FILE_ATTRIBUTE_DIRECTORY);
-}
-
-static PyObject *
-DirEntry_is_file(DirEntry *self)
-{
-    return PyBool_FromLong(!(self->win32_lstat.st_file_attributes &
-                             FILE_ATTRIBUTE_DIRECTORY));
-}
-
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
 {
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-    return PyBool_FromLong(self->win32_lstat.st_file_attributes &
-                           FILE_ATTRIBUTE_REPARSE_POINT);
+    return PyBool_FromLong(self->win32_lstat.st_mode & S_IFLNK);
 #else
     // TODO ben
 #endif
 }
 
+static char *_follow_symlinks_keywords[] = {"follow_symlinks", NULL};
+
 static PyObject *
-DirEntry_stat(DirEntry *self)
+DirEntry_do_stat(DirEntry *self, int follow_symlinks)
 {
-    if (!self->lstat) {
-        self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+    if (follow_symlinks) {
+        if (!self->stat) {
+            if (self->win32_lstat.st_mode & S_IFLNK) {
+                path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
+
+                if (!path_converter(self->path, &path)) {
+                    return NULL;
+                }
+                self->stat = posix_do_stat("DirEntry.stat", &path,
+                                           DEFAULT_DIR_FD, follow_symlinks);
+                path_cleanup(&path);
+            }
+            else {
+                if (!self->lstat) {
+                    self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+                }
+                Py_XINCREF(self->lstat);
+                self->stat = self->lstat;
+            }
+        }
+        Py_XINCREF(self->stat);
+        return self->stat;
     }
-    Py_XINCREF(self->lstat);
-    return self->lstat;
+    else {
+        if (!self->lstat) {
+            self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+        }
+        Py_XINCREF(self->lstat);
+        return self->lstat;
+    }
+}
+
+static PyObject *
+DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
+{
+    int follow_symlinks = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.stat",
+                                     _follow_symlinks_keywords,
+                                     &follow_symlinks)) {
+        return NULL;
+    }
+
+    return DirEntry_do_stat(self, follow_symlinks);
+}
+
+static PyObject *
+DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, int is_dir)
+{
+    PyObject *stat = NULL;
+    PyObject *st_mode = NULL;
+    int mode;
+    int result = 0;
+
+    if (follow_symlinks && (self->win32_lstat.st_mode & S_IFLNK) != 0) {
+        stat = DirEntry_do_stat(self, follow_symlinks);
+        if (!stat)
+            goto error;
+        st_mode = PyObject_GetAttrString(stat, "st_mode");
+        if (!st_mode)
+            goto error;
+
+        mode = PyLong_AsLong(st_mode);
+        Py_DECREF(st_mode);
+        Py_DECREF(stat);
+        result = (mode & S_IFMT) == (is_dir ? S_IFDIR : S_IFREG);
+    }
+    else {
+        unsigned long dir_bits = self->win32_lstat.st_file_attributes &
+                                 FILE_ATTRIBUTE_DIRECTORY;
+        result = is_dir ? dir_bits != 0 : dir_bits == 0;
+    }
+
+    return PyBool_FromLong(result);
+
+error:
+    Py_XDECREF(st_mode);
+    Py_XDECREF(stat);
+    return NULL;
+}
+
+static PyObject *
+DirEntry_is_dir(DirEntry *self, PyObject *args, PyObject *kwargs)
+{
+    int follow_symlinks = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_dir",
+                                     _follow_symlinks_keywords,
+                                     &follow_symlinks)) {
+        return NULL;
+    }
+
+    return DirEntry_is_dir_file(self, follow_symlinks, 1);
+}
+
+static PyObject *
+DirEntry_is_file(DirEntry *self, PyObject *args, PyObject *kwargs)
+{
+    int follow_symlinks = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_file",
+                                     _follow_symlinks_keywords,
+                                     &follow_symlinks)) {
+        return NULL;
+    }
+
+    return DirEntry_is_dir_file(self, follow_symlinks, 0);
 }
 
 static PyMemberDef DirEntry_members[] = {
@@ -11231,21 +11319,22 @@ static PyMemberDef DirEntry_members[] = {
 };
 
 static PyMethodDef DirEntry_methods[] = {
-    {"is_dir", (PyCFunction)DirEntry_is_dir, METH_NOARGS,
+    {"is_dir", (PyCFunction)DirEntry_is_dir, METH_VARARGS | METH_KEYWORDS,
      "return True if this entry is a directory; cached per entry"
     },
-    {"is_file", (PyCFunction)DirEntry_is_file, METH_NOARGS,
+    {"is_file", (PyCFunction)DirEntry_is_file, METH_VARARGS | METH_KEYWORDS,
      "return True if this entry is a file; cached per entry"
     },
     {"is_symlink", (PyCFunction)DirEntry_is_symlink, METH_NOARGS,
      "return True if this entry is a symbolic link; cached per entry"
     },
-    {"stat", (PyCFunction)DirEntry_stat, METH_NOARGS,
+    {"stat", (PyCFunction)DirEntry_stat, METH_VARARGS | METH_KEYWORDS,
      "return stat_result object for this entry; cached per entry"
     },
     {NULL}
 };
 
+// TODO ben: should we add a __str__ for DirEntry?
 PyTypeObject DirEntryType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "DirEntry",                             /* tp_name */
@@ -11290,7 +11379,8 @@ find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
     memset(result, 0, sizeof(*result));
 
     result->st_mode = attributes_to_mode(data->dwFileAttributes);
-    if (data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+    if ((data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
+            (data->dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
         /* first clear the S_IFMT bits */
         result->st_mode ^= (result->st_mode & S_IFMT);
         /* now set the bits that make this a symlink */

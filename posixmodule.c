@@ -11157,7 +11157,7 @@ Ben's notes:
 * change "generator of DirEntry objects" -> "iterator of DirEntry objects"
 */
 
-#include "structmember.h"  // TODO ben: for READONLY
+#include "structmember.h"
 
 PyDoc_STRVAR(posix_scandir__doc__,
 "scandir(path='.') -> iterator of DirEntry objects for given path");
@@ -11165,7 +11165,7 @@ PyDoc_STRVAR(posix_scandir__doc__,
 typedef struct {
     PyObject_HEAD
     PyObject *name;
-    PyObject *path; // TODO ben: make this lazy?
+    PyObject *path;
     PyObject *stat;
     PyObject *lstat;
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
@@ -11178,7 +11178,6 @@ typedef struct {
 static void
 DirEntry_dealloc(DirEntry *entry)
 {
-    /* TODO ben: non-X DECREF for any of these? */
     Py_XDECREF(entry->name);
     Py_XDECREF(entry->path);
     Py_XDECREF(entry->stat);
@@ -11189,11 +11188,7 @@ DirEntry_dealloc(DirEntry *entry)
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
 {
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
     return PyBool_FromLong(self->win32_lstat.st_mode & S_IFLNK);
-#else
-    // TODO ben
-#endif
 }
 
 static char *_follow_symlinks_keywords[] = {"follow_symlinks", NULL};
@@ -11334,7 +11329,6 @@ static PyMethodDef DirEntry_methods[] = {
     {NULL}
 };
 
-// TODO ben: should we add a __str__ for DirEntry?
 PyTypeObject DirEntryType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "DirEntry",                             /* tp_name */
@@ -11396,53 +11390,67 @@ find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
     result->st_file_attributes = data->dwFileAttributes;
 }
 
+// TODO ben: can posix_listdir() reuse this?
+static wchar_t *
+_join_path_filenameW(path_t *path, wchar_t* filename)
+{
+    Py_ssize_t path_len;
+    wchar_t *path_str;
+    wchar_t *result;
+
+    if (!path->wide) { /* Default arg: "." */
+        path_str = L".";
+        path_len = 1;
+    }
+    else {
+        path_str = path->wide;
+        path_len = wcslen(path_str);
+    }
+    /* The +2 is for the path separator and the NUL */
+    result = PyMem_Malloc((path_len + wcslen(filename) + 2) * sizeof(wchar_t));
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    wcscpy(result, path_str);
+    if (path_len > 0) {
+        wchar_t ch = result[path_len - 1];
+        if (ch != SEP && ch != ALTSEP && ch != L':')
+            result[path_len++] = SEP;
+        wcscpy(result + path_len, filename);
+    }
+    return result;
+}
+
 static PyObject *
 make_DirEntry(path_t *path, WIN32_FIND_DATAW *data)
 {
     DirEntry *entry;
+
     entry = PyObject_New(DirEntry, &DirEntryType);
-    if (entry == NULL) {
-        // TODO ben: error handling?
+    if (!entry) {
         return NULL;
     }
 
     if (!path->narrow) {
-        Py_ssize_t filename_len;
-        Py_ssize_t path_len;
-        wchar_t *wnamebuf;
-        wchar_t *po_wchars;
+        wchar_t *path_str;
 
-        filename_len = wcslen(data->cFileName);
-        entry->name = PyUnicode_FromWideChar(data->cFileName, filename_len);
+        entry->name = PyUnicode_FromWideChar(data->cFileName, -1);
+
         entry->path = NULL;
-
-        if (!path->wide) { /* Default arg: "." */
-            po_wchars = L".";
-            path_len = 1;
+        path_str = _join_path_filenameW(path, data->cFileName);
+        if (!path_str) {
+            return NULL;
         }
-        else {
-            po_wchars = path->wide;
-            path_len = wcslen(path->wide);
-        }
-        /* The +2 is for the path separator and the NUL */
-        wnamebuf = PyMem_Malloc((path_len + filename_len + 2) * sizeof(wchar_t));
-        if (!wnamebuf) {
-            return PyErr_NoMemory();
-        }
-        wcscpy(wnamebuf, po_wchars);
-        if (path_len > 0) {
-            wchar_t wch = wnamebuf[path_len-1];
-            if (wch != SEP && wch != ALTSEP && wch != L':')
-                wnamebuf[path_len++] = SEP;
-            wcscpy(wnamebuf + path_len, data->cFileName);
-        }
-        entry->path = PyUnicode_FromWideChar(wnamebuf, path_len + filename_len);
-
-        PyMem_Free(wnamebuf);
+        entry->path = PyUnicode_FromWideChar(path_str, -1);
+        PyMem_Free(path_str);
     }
     else {
         // TODO ben
+        entry->name = NULL;
+        entry->path = NULL;
     }
+
     entry->stat = NULL;
     entry->lstat = NULL;
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
@@ -11466,71 +11474,48 @@ typedef struct {
 #endif
 } ScandirIterator;
 
+// TODO ben: do we need to handle FindClose/closedir errors here? how?
 static void
-ScandirIterator_dealloc(PyObject *py_iterator)
+ScandirIterator_dealloc(ScandirIterator *iterator)
 {
-    ScandirIterator *iterator = (ScandirIterator *)py_iterator;
-
-    if (iterator == NULL) {  // TODO ben: is this needed?
-        return;
-    }
-
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
     if (iterator->handle != INVALID_HANDLE_VALUE) {
         Py_BEGIN_ALLOW_THREADS
-        FindClose(iterator->handle);  // TODO ben: handle errors
+        FindClose(iterator->handle);
         Py_END_ALLOW_THREADS
     }
 #else
-    if (iterator->dirp != NULL) {
+    if (iterator->dirp) {
         Py_BEGIN_ALLOW_THREADS
-        closedir(iterator->dirp);  // TODO ben: handle errors
+        closedir(iterator->dirp);
         Py_END_ALLOW_THREADS
     }
 #endif
 
     path_cleanup(&iterator->path);
-    PyObject_Del(iterator);
+
+    Py_TYPE(iterator)->tp_free((PyObject *)iterator);
 }
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
 static PyObject *
-ScandirIterator_iternext(PyObject *py_iterator)
+ScandirIterator_iternext(ScandirIterator *iterator)
 {
-    ScandirIterator *iterator = (ScandirIterator *)py_iterator;
     WIN32_FIND_DATAW wFileData;
-    wchar_t *wnamebuf = NULL;
+    wchar_t *path_str = NULL;
 
     while (1) {
         if (iterator->handle == INVALID_HANDLE_VALUE) {
             /* First time around, prepare path and call FindFirstFile */
             if (!iterator->path.narrow) {
-                Py_ssize_t len;
-                wchar_t *po_wchars;
-
-                if (!iterator->path.wide) { /* Default arg: "." */
-                    po_wchars = L".";
-                    len = 1;
+                path_str = _join_path_filenameW(&iterator->path, L".");
+                if (!path_str) {
+                    return NULL;
                 }
-                else {
-                    po_wchars = iterator->path.wide;
-                    len = wcslen(iterator->path.wide);
-                }
-                /* The +5 is so we can append "\\*.*\0" */
-                wnamebuf = PyMem_Malloc((len + 5) * sizeof(wchar_t));
-                if (!wnamebuf) {
-                    return PyErr_NoMemory();
-                }
-                wcscpy(wnamebuf, po_wchars);
-                if (len > 0) {
-                    wchar_t wch = wnamebuf[len-1];
-                    if (wch != SEP && wch != ALTSEP && wch != L':')
-                        wnamebuf[len++] = SEP;
-                    wcscpy(wnamebuf + len, L"*.*");
-                }
+                wprintf(L"TODO iternext path: %s\n", path_str);
             }
             else {
-                // TODO ben
+                // TODO ben: bytes support
                 char namebuf[MAX_PATH+4]; /* Overallocate for "\*.*" */
                 /* only claim to have space for MAX_PATH */
 
@@ -11545,16 +11530,14 @@ ScandirIterator_iternext(PyObject *py_iterator)
             }
 
             Py_BEGIN_ALLOW_THREADS
-            iterator->handle = FindFirstFileW(wnamebuf, &wFileData);
+            iterator->handle = FindFirstFileW(path_str, &wFileData);
             Py_END_ALLOW_THREADS
 
-            // We're done with wnamebuf now
-            PyMem_Free(wnamebuf);
+            // We're done with path_str now
+            PyMem_Free(path_str);
 
             if (iterator->handle == INVALID_HANDLE_VALUE) {
-                // TODO ben: is it bad that iterator->handle == INVALID_HANDLE_VALUE in this case?
                 if (GetLastError() != ERROR_FILE_NOT_FOUND) {
-                    // TODO ben: check that we raise FileNotFoundError if path doesn't exist
                     return path_error(&iterator->path);
                 }
                 /* No files found, stop iterating */
@@ -11587,7 +11570,6 @@ ScandirIterator_iternext(PyObject *py_iterator)
                                               wcslen(wFileData.cFileName));
             }
             else {
-                /* TODO ben: error handling? */
                 return make_DirEntry(&iterator->path, &wFileData);
             }
         }
@@ -11636,7 +11618,7 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     static char *keywords[] = {"path", NULL};
 
     iterator = PyObject_New(ScandirIterator, &ScandirIteratorType);
-    if (iterator == NULL) {
+    if (!iterator) {
         return NULL;
     }
     iterator->yield_name = 0;
@@ -11644,17 +11626,17 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     iterator->path.function_name = "scandir";
     iterator->path.nullable = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O&:scandir", keywords,
-                                     path_converter, &iterator->path)) {
-        Py_DECREF(iterator);
-        return NULL;
-    }
-
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
     iterator->handle = INVALID_HANDLE_VALUE;
 #else
     iterator->dirp = NULL;
 #endif
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O&:scandir", keywords,
+                                     path_converter, &iterator->path)) {
+        Py_DECREF(iterator);
+        return NULL;
+    }
 
     return (PyObject *)iterator;
 }

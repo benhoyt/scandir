@@ -366,6 +366,9 @@ HANDLE *p_handle;
 
         if (fi->handle == NULL) {
             p_handle = malloc(sizeof(HANDLE));
+            if (p_handle == NULL) {
+                return PyErr_NoMemory();
+            }
             Py_BEGIN_ALLOW_THREADS
             *p_handle = FindFirstFileW(fi->path.wide, &data);
             Py_END_ALLOW_THREADS

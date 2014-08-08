@@ -11508,11 +11508,10 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         if (iterator->handle == INVALID_HANDLE_VALUE) {
             /* First time around, prepare path and call FindFirstFile */
             if (!iterator->path.narrow) {
-                path_str = _join_path_filenameW(&iterator->path, L".");
+                path_str = _join_path_filenameW(&iterator->path, L"*.*");
                 if (!path_str) {
                     return NULL;
                 }
-                wprintf(L"TODO iternext path: %s\n", path_str);
             }
             else {
                 // TODO ben: bytes support

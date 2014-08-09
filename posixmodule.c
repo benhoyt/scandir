@@ -11195,12 +11195,7 @@ DirEntry_do_is_symlink(DirEntry *self)
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
 {
-    if (DirEntry_do_is_symlink(self)) {
-        Py_RETURN_TRUE;
-    }
-    else {
-        Py_RETURN_FALSE;
-    }
+    return PyBool_FromLong(DirEntry_do_is_symlink(self));
 }
 
 static char *_follow_symlinks_keywords[] = {"follow_symlinks", NULL};
@@ -11264,11 +11259,13 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, int is_dir)
 
     if (follow_symlinks && DirEntry_do_is_symlink(self)) {
         stat = DirEntry_do_stat(self, follow_symlinks);
-        if (!stat)
+        if (!stat) {
             goto error;
+        }
         st_mode = PyObject_GetAttrString(stat, "st_mode");
-        if (!st_mode)
+        if (!st_mode) {
             goto error;
+        }
 
         mode = PyLong_AsLong(st_mode);
         Py_DECREF(st_mode);
@@ -11483,15 +11480,18 @@ make_DirEntry(path_t *path, void *data)
 
         entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
         if (!entry->name) {
-            return NULL;
+            goto error;
         }
 
         path_strW = _join_path_filenameW(path, dataW->cFileName);
         if (!path_strW) {
-            return NULL;
+            goto error;
         }
         entry->path = PyUnicode_FromWideChar(path_strW, wcslen(path_strW));
         PyMem_Free(path_strW);
+        if (!entry->path) {
+            goto error;
+        }
     }
     else {
         WIN32_FIND_DATAA *dataA = (WIN32_FIND_DATAA *)data;
@@ -11499,15 +11499,18 @@ make_DirEntry(path_t *path, void *data)
 
         entry->name = PyBytes_FromString(dataA->cFileName);
         if (!entry->name) {
-            return NULL;
+            goto error;
         }
 
         path_strA = _join_path_filenameA(path, dataA->cFileName);
         if (!path_strA) {
-            return NULL;
+            goto error;
         }
         entry->path = PyBytes_FromString(path_strA);
         PyMem_Free(path_strA);
+        if (!entry->path) {
+            goto error;
+        }
     }
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
@@ -11517,6 +11520,10 @@ make_DirEntry(path_t *path, void *data)
 #endif
 
     return (PyObject *)entry;
+
+error:
+    Py_XDECREF(entry);
+    return NULL;
 }
 #endif
 

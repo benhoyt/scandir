@@ -11154,6 +11154,8 @@ Ben's notes:
   a different name than listdir() for the sake of avoiding confusion
   with the DirEntry.path attribute -- I don't think that's an issue
 
+* check allocation/freeing on errors (early return NULLs)
+
 */
 
 #include "structmember.h"
@@ -11729,7 +11731,24 @@ posix_listdir2(PyObject *self, PyObject *args, PyObject *kwargs)
         goto error;
     }
 
-    /* TODO ben */
+    while (1) {
+        PyObject *name = ScandirIterator_iternext(iterator);
+        if (!name) {
+            if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
+                PyErr_Clear();
+                break;
+            }
+            else {
+                goto error;
+            }
+        }
+        if (PyList_Append(list, name) != 0) {
+            goto error;
+        }
+    }
+
+    Py_DECREF(iterator);
+    return list;
 
 error:
     Py_XDECREF(list);
@@ -11842,6 +11861,9 @@ static PyMethodDef posix_methods[] = {
     {"scandir",         (PyCFunction)posix_scandir,
                         METH_VARARGS | METH_KEYWORDS,
                         posix_scandir__doc__},
+    {"listdir2",        (PyCFunction)posix_listdir2,
+                        METH_VARARGS | METH_KEYWORDS,
+                        NULL},
     {"stat_float_times", stat_float_times, METH_VARARGS, stat_float_times__doc__},
 #if defined(HAVE_SYMLINK)
     {"symlink",         (PyCFunction)posix_symlink,

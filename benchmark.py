@@ -207,7 +207,9 @@ using it instead of creating a tree.
         global os_walk
         os_walk = os.walk
 
-    if scandir._scandir:
+    if scandir.scandir == os.scandir:
+        print("Using Python 3.5's builtin os.scandir()")
+    elif scandir._scandir:
         print('Using fast C version of scandir')
     else:
         print('Using slower ctypes version of scandir')

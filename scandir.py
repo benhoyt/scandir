@@ -18,6 +18,7 @@ from os.path import join
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import collections
 import ctypes
+import os
 import sys
 
 __version__ = '0.8'
@@ -549,6 +550,11 @@ else:
         """
         for name in listdir(directory):
             yield GenericDirEntry(directory, name)
+
+
+# Override with Python 3.5's built-in os.scandir() if available
+if hasattr(os, 'scandir'):
+    scandir = os.scandir
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):

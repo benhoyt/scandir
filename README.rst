@@ -110,11 +110,11 @@ scandir()
 The ``scandir()`` function is the scandir module's main workhorse. It's defined
 as follows::
 
-    scandir(directory='.') -> generator of DirEntry objects
+    scandir(path='.') -> generator of DirEntry objects
 
 Like ``listdir``, ``scandir`` calls the operating system's directory
 iteration system calls to get the names of the files in the given
-``directory``, but it's different from ``listdir`` in two ways:
+``path``, but it's different from ``listdir`` in two ways:
 
 * Instead of returning bare filename strings, it returns lightweight
   ``DirEntry`` objects that hold the filename string and provide
@@ -125,16 +125,16 @@ iteration system calls to get the names of the files in the given
   as a true iterator instead of returning the full list immediately.
 
 ``scandir()`` yields a ``DirEntry`` object for each file and
-sub-directory in ``directory``. Just like ``listdir``, the ``'.'``
+sub-directory in ``path``. Just like ``listdir``, the ``'.'``
 and ``'..'`` pseudo-directories are skipped, and the entries are
 yielded in system-dependent order. Each ``DirEntry`` object has the
 following attributes and methods:
 
-* ``name``: the entry's filename, relative to the ``directory``
+* ``name``: the entry's filename, relative to the scandir ``path``
   argument (corresponds to the return values of ``os.listdir``)
 
 * ``path``: the entry's full path name (not necessarily an absolute
-  path) -- the equivalent of ``os.path.join(directory, entry.name)``
+  path) -- the equivalent of ``os.path.join(scandir_path, entry.name)``
 
 * ``is_dir(*, follow_symlinks=True)``: similar to
   ``pathlib.Path.is_dir()``, but the return value is cached on the

@@ -54,10 +54,10 @@ _scandir = None
 
 
 class GenericDirEntry(object):
-    __slots__ = ('name', '_stat', '_lstat', '_directory', '_path')
+    __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
 
-    def __init__(self, directory, name):
-        self._directory = directory
+    def __init__(self, scandir_path, name):
+        self._scandir_path = scandir_path
         self.name = name
         self._stat = None
         self._lstat = None
@@ -66,7 +66,7 @@ class GenericDirEntry(object):
     @property
     def path(self):
         if self._path is None:
-            self._path = join(self._directory, self.name)
+            self._path = join(self._scandir_path, self.name)
         return self._path
 
     def stat(self, follow_symlinks=True):
@@ -198,10 +198,10 @@ if sys.platform == 'win32':
                                attributes)
 
     class Win32DirEntry(object):
-        __slots__ = ('name', '_stat', '_lstat', '_find_data', '_directory', '_path')
+        __slots__ = ('name', '_stat', '_lstat', '_find_data', '_scandir_path', '_path')
 
-        def __init__(self, directory, name, find_data):
-            self._directory = directory
+        def __init__(self, scandir_path, name, find_data):
+            self._scandir_path = scandir_path
             self.name = name
             self._stat = None
             self._lstat = None
@@ -211,7 +211,7 @@ if sys.platform == 'win32':
         @property
         def path(self):
             if self._path is None:
-                self._path = join(self._directory, self.name)
+                self._path = join(self._scandir_path, self.name)
             return self._path
 
         def stat(self, follow_symlinks=True):
@@ -271,21 +271,21 @@ if sys.platform == 'win32':
         exc.filename = filename
         return exc
 
-    def scandir(directory='.'):
+    def scandir(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
         # Call FindFirstFile and handle errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = join(directory, '*.*')
+        filename = join(path, '*.*')
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
             if error == ERROR_FILE_NOT_FOUND:
                 # No files, don't yield anything
                 return
-            raise win_error(error, directory)
+            raise win_error(error, path)
 
         # Call FindNextFile in a loop, stopping when no more files
         try:
@@ -294,7 +294,7 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    yield Win32DirEntry(directory, name, data)
+                    yield Win32DirEntry(path, name, data)
 
                 data = wintypes.WIN32_FIND_DATAW()
                 data_p = ctypes.byref(data)
@@ -303,10 +303,10 @@ if sys.platform == 'win32':
                     error = ctypes.GetLastError()
                     if error == ERROR_NO_MORE_FILES:
                         break
-                    raise win_error(error, directory)
+                    raise win_error(error, path)
         finally:
             if not FindClose(handle):
-                raise win_error(ctypes.GetLastError(), directory)
+                raise win_error(ctypes.GetLastError(), path)
 
     try:
         import _scandir
@@ -314,10 +314,10 @@ if sys.platform == 'win32':
         scandir_helper = _scandir.scandir_helper
 
         class Win32DirEntry(object):
-            __slots__ = ('name', '_stat', '_lstat', '_directory', '_path')
+            __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
 
-            def __init__(self, directory, name, lstat):
-                self._directory = directory
+            def __init__(self, scandir_path, name, lstat):
+                self._scandir_path = scandir_path
                 self.name = name
                 self._stat = None
                 self._lstat = lstat
@@ -326,7 +326,7 @@ if sys.platform == 'win32':
             @property
             def path(self):
                 if self._path is None:
-                    self._path = join(self._directory, self.name)
+                    self._path = join(self._scandir_path, self.name)
                 return self._path
 
             def stat(self, follow_symlinks=True):
@@ -372,9 +372,9 @@ if sys.platform == 'win32':
 
             __repr__ = __str__
 
-        def scandir(directory='.'):
-            for name, stat in scandir_helper(unicode(directory)):
-                yield Win32DirEntry(directory, name, stat)
+        def scandir(path='.'):
+            for name, stat in scandir_helper(unicode(path)):
+                yield Win32DirEntry(path, name, stat)
 
     except ImportError:
         pass
@@ -430,10 +430,10 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     file_system_encoding = sys.getfilesystemencoding()
 
     class PosixDirEntry(object):
-        __slots__ = ('name', '_d_type', '_stat', '_lstat', '_directory', '_path')
+        __slots__ = ('name', '_d_type', '_stat', '_lstat', '_scandir_path', '_path')
 
-        def __init__(self, directory, name, d_type):
-            self._directory = directory
+        def __init__(self, scandir_path, name, d_type):
+            self._scandir_path = scandir_path
             self.name = name
             self._d_type = d_type
             self._stat = None
@@ -443,7 +443,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         @property
         def path(self):
             if self._path is None:
-                self._path = join(self._directory, self.name)
+                self._path = join(self._scandir_path, self.name)
             return self._path
 
         def stat(self, follow_symlinks=True):
@@ -505,38 +505,38 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         exc.filename = filename
         return exc
 
-    def scandir(directory='.'):
+    def scandir(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
-        dir_p = opendir(directory.encode(file_system_encoding))
+        dir_p = opendir(path.encode(file_system_encoding))
         if not dir_p:
-            raise posix_error(directory)
+            raise posix_error(path)
         try:
             result = Dirent_p()
             while True:
                 entry = Dirent()
                 if readdir_r(dir_p, entry, result):
-                    raise posix_error(directory)
+                    raise posix_error(path)
                 if not result:
                     break
                 name = entry.d_name.decode(file_system_encoding)
                 if name not in ('.', '..'):
-                    yield PosixDirEntry(directory, name, entry.d_type)
+                    yield PosixDirEntry(path, name, entry.d_type)
         finally:
             if closedir(dir_p):
-                raise posix_error(directory)
+                raise posix_error(path)
 
     try:
         import _scandir
 
         scandir_helper = _scandir.scandir_helper
 
-        def scandir(directory='.'):
-            if not isinstance(directory, unicode):
-                directory = directory.decode(file_system_encoding)
-            for name, d_type in scandir_helper(directory):
-                yield PosixDirEntry(directory, name, d_type)
+        def scandir(path='.'):
+            if not isinstance(path, unicode):
+                path = path.decode(file_system_encoding)
+            for name, d_type in scandir_helper(path):
+                yield PosixDirEntry(path, name, d_type)
 
     except ImportError:
         pass
@@ -544,12 +544,12 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
 # Some other system -- no d_type or stat information
 else:
-    def scandir(directory='.'):
+    def scandir(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
-        for name in listdir(directory):
-            yield GenericDirEntry(directory, name)
+        for name in listdir(path):
+            yield GenericDirEntry(path, name)
 
 
 # Override with Python 3.5's built-in os.scandir() if available

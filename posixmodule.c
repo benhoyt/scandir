@@ -11240,23 +11240,30 @@ DirEntry_do_is_symlink(DirEntry *self)
 }
 
 static PyObject *
+DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
+{
+    PyObject *result;
+    path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
+
+    if (!path_converter(self->path, &path)) {
+        return NULL;
+    }
+    result = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, follow_symlinks);
+    path_cleanup(&path);
+    return result;
+}
+
+static PyObject *
 DirEntry_do_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
             if (DirEntry_do_is_symlink(self)) {
-                path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
-
-                if (!path_converter(self->path, &path)) {
-                    return NULL;
-                }
-                self->stat = posix_do_stat("DirEntry.stat", &path,
-                                           DEFAULT_DIR_FD, follow_symlinks);
-                path_cleanup(&path);
+                self->stat = DirEntry_fetch_stat(self, 1);
             }
             else {
                 if (!self->lstat) {
-                    self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+                    self->lstat = DirEntry_fetch_stat(self, 0);
                 }
                 Py_XINCREF(self->lstat);
                 self->stat = self->lstat;
@@ -11267,14 +11274,7 @@ DirEntry_do_stat(DirEntry *self, int follow_symlinks)
     }
     else {
         if (!self->lstat) {
-            path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
-
-            if (!path_converter(self->path, &path)) {
-                return NULL;
-            }
-            self->lstat = posix_do_stat("DirEntry.stat", &path,
-                                        DEFAULT_DIR_FD, follow_symlinks);
-            path_cleanup(&path);
+            self->lstat = DirEntry_fetch_stat(self, 0);
         }
         Py_XINCREF(self->lstat);
         return self->lstat;

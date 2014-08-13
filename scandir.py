@@ -449,7 +449,12 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         def stat(self, follow_symlinks=True):
             if follow_symlinks:
                 if self._stat is None:
-                    self._stat = stat(self.path)
+                    if self.is_symlink():
+                        self._stat = stat(self.path)
+                    else:
+                        if self._lstat is None:
+                            self._lstat = lstat(self.path)
+                        self._stat = self._lstat
                 return self._stat
             else:
                 if self._lstat is None:

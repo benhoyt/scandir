@@ -11201,7 +11201,7 @@ DirEntry_do_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
-            if (DirEntry_do_is_symlink(self)) {
+            if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
                 path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
 
                 if (!path_converter(self->path, &path)) {
@@ -11321,7 +11321,6 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
     PyObject *st_mode = NULL;
     int mode;
     int result = 0;
-    int is_symlink;
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
     if (follow_symlinks && (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {

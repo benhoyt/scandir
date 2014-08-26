@@ -11321,7 +11321,6 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
     PyObject *st_mode = NULL;
     int mode;
     int result = 0;
-    int is_symlink;
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
     if (follow_symlinks && (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
@@ -11463,7 +11462,15 @@ _join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
     Py_ssize_t path_len;
     char *result;
 
+    if (!path_narrow) { /* Default arg: "." */
+        path_narrow = ".";
+        path_len = 1;
+    }
+    else {
+    	path_len = strlen(path_narrow);
+    }
     path_len = strlen(path_narrow);
+
     if (filename_len == -1) {
         filename_len = strlen(filename);
     }
@@ -11523,16 +11530,14 @@ static wchar_t *
 _join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 {
     Py_ssize_t path_len;
-    wchar_t *path_str;
     wchar_t *result;
 
     if (!path_wide) { /* Default arg: "." */
-        path_str = L".";
+        path_wide = L".";
         path_len = 1;
     }
     else {
-        path_str = path_wide;
-        path_len = wcslen(path_str);
+        path_len = wcslen(path_wide);
     }
     /* The +2 is for the path separator and the NUL */
     result = PyMem_Malloc((path_len + wcslen(filename) + 2) * sizeof(wchar_t));
@@ -11540,7 +11545,7 @@ _join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
         PyErr_NoMemory();
         return NULL;
     }
-    wcscpy(result, path_str);
+    wcscpy(result, path_wide);
     if (path_len > 0) {
         wchar_t ch = result[path_len - 1];
         if (ch != SEP && ch != ALTSEP && ch != L':')

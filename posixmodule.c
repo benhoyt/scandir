@@ -11201,7 +11201,7 @@ DirEntry_do_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
-            if (DirEntry_do_is_symlink(self)) {
+            if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
                 path_t path = PATH_T_INITIALIZE("DirEntry.stat", 0, 0);
 
                 if (!path_converter(self->path, &path)) {

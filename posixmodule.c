@@ -11467,7 +11467,7 @@ _join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
         path_len = 1;
     }
     else {
-    	path_len = strlen(path_narrow);
+        path_len = strlen(path_narrow);
     }
     path_len = strlen(path_narrow);
 

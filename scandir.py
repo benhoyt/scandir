@@ -112,6 +112,14 @@ class GenericDirEntry(object):
     __repr__ = __str__
 
 
+def scandir_generic(path='.'):
+    """Like os.listdir(), but yield DirEntry objects instead of returning
+    a list of names.
+    """
+    for name in listdir(path):
+        yield GenericDirEntry(path, name)
+
+
 if sys.platform == 'win32':
     from ctypes import wintypes
 
@@ -271,7 +279,7 @@ if sys.platform == 'win32':
         exc.filename = filename
         return exc
 
-    def scandir(path='.'):
+    def scandir_python(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
@@ -372,12 +380,14 @@ if sys.platform == 'win32':
 
             __repr__ = __str__
 
-        def scandir(path='.'):
+        def scandir_c(path='.'):
             for name, stat in scandir_helper(unicode(path)):
                 yield Win32DirEntry(path, name, stat)
 
+        scandir = scandir_c
+
     except ImportError:
-        pass
+        scandir = scandir_python
 
 
 # Linux, OS X, and BSD implementation
@@ -510,7 +520,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         exc.filename = filename
         return exc
 
-    def scandir(path='.'):
+    def scandir_python(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
@@ -537,29 +547,21 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
         scandir_helper = _scandir.scandir_helper
 
-        def scandir(path='.'):
+        def scandir_c(path='.'):
             if not isinstance(path, unicode):
                 path = path.decode(file_system_encoding)
             for name, d_type in scandir_helper(path):
                 yield PosixDirEntry(path, name, d_type)
 
+        scandir = scandir_c
+
     except ImportError:
-        pass
+        scandir = scandir_python
 
 
 # Some other system -- no d_type or stat information
 else:
-    def scandir(path='.'):
-        """Like os.listdir(), but yield DirEntry objects instead of returning
-        a list of names.
-        """
-        for name in listdir(path):
-            yield GenericDirEntry(path, name)
-
-
-# Override with Python 3.5's built-in os.scandir() if available
-if hasattr(os, 'scandir'):
-    scandir = os.scandir
+    scandir = scandir_generic
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):

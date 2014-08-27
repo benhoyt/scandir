@@ -57,6 +57,7 @@ class TestMixin(object):
         if sys.platform != 'win32' or self.scandir_func == scandir.scandir_generic:
             # st_file_attributes is Win32 specific (but can't use
             # unittest.skipUnless on Python 2.6)
+            sys.stdout.write('(skipped) ')
             return
 
         entries = dict((e.name, e) for e in self.scandir_func(test_path))
@@ -102,9 +103,8 @@ class TestMixin(object):
         os.remove(os.path.join(test_path, 'link_to_dir'))
 
     def test_symlink(self):
-        if not hasattr(os, 'symlink'):
-            return
-        if not self._symlink_setup():
+        if not hasattr(os, 'symlink') or not self._symlink_setup():
+            sys.stdout.write('(skipped) ')
             return
         try:
             entries = sorted(self.scandir_func(test_path), key=lambda e: e.name)

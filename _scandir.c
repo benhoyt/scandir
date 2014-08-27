@@ -236,8 +236,6 @@ attributes_to_mode(DWORD attr)
         m |= 0444;
     else
         m |= 0666;
-    if (attr & FILE_ATTRIBUTE_REPARSE_POINT)
-        m |= 0120000;  // S_IFLNK
     return m;
 }
 
@@ -267,6 +265,8 @@ static PyObject *
 find_data_to_statresult(WIN32_FIND_DATAW *data)
 {
     unsigned PY_LONG_LONG size;
+    int mode;
+
     PyObject *v = PyStructSequence_New(&StatResultType);
     if (v == NULL)
         return NULL;
@@ -274,7 +274,14 @@ find_data_to_statresult(WIN32_FIND_DATAW *data)
     size = (unsigned PY_LONG_LONG)data->nFileSizeHigh << 32 |
            (unsigned PY_LONG_LONG)data->nFileSizeLow;
 
-    PyStructSequence_SET_ITEM(v, 0, FROM_LONG(attributes_to_mode(data->dwFileAttributes)));
+    mode = attributes_to_mode(data->dwFileAttributes);
+    if ((data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
+            (data->dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
+        mode ^= mode & 0170000;  /* S_IFMT */
+        mode |= 0120000;         /* S_IFLNK */
+    }
+
+    PyStructSequence_SET_ITEM(v, 0, FROM_LONG(mode));
     PyStructSequence_SET_ITEM(v, 1, FROM_LONG(0));
     PyStructSequence_SET_ITEM(v, 2, FROM_LONG(0));
     PyStructSequence_SET_ITEM(v, 3, FROM_LONG(0));

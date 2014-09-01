@@ -4,15 +4,23 @@ import os
 import sys
 import unittest
 
-import scandir
+try:
+    import scandir
+    has_scandir = True
+except ImportError:
+    has_scandir = False
+
+FILE_ATTRIBUTE_DIRECTORY = 16
 
 test_path = os.path.join(os.path.dirname(__file__), 'dir')
 
-# longs are just ints on Python 3
-try:
-    long
-except NameError:
-    long = int
+IS_PY3 = sys.version_info >= (3, 0)
+
+if IS_PY3:
+    int_types = int
+else:
+    int_types = (int, long)
+    str = unicode
 
 
 class TestMixin(object):
@@ -24,27 +32,29 @@ class TestMixin(object):
         self.assertEqual([(e.name, e.is_dir()) for e in entries],
                          [('file1.txt', False), ('file2.txt', False), ('subdir', True)])
 
+        # TODO ben: test .path attribute
+
     def test_dir_entry(self):
         entries = dict((e.name, e) for e in self.scandir_func(test_path))
         e = entries['file1.txt']
-        self.assertEquals([e.is_dir(), e.is_file(), e.is_symlink()], [False, True, False])
+        self.assertEqual([e.is_dir(), e.is_file(), e.is_symlink()], [False, True, False])
         e = entries['file2.txt']
-        self.assertEquals([e.is_dir(), e.is_file(), e.is_symlink()], [False, True, False])
+        self.assertEqual([e.is_dir(), e.is_file(), e.is_symlink()], [False, True, False])
         e = entries['subdir']
-        self.assertEquals([e.is_dir(), e.is_file(), e.is_symlink()], [True, False, False])
+        self.assertEqual([e.is_dir(), e.is_file(), e.is_symlink()], [True, False, False])
 
-        self.assertEquals(entries['file1.txt'].stat().st_size, 4)
-        self.assertEquals(entries['file2.txt'].stat().st_size, 8)
+        self.assertEqual(entries['file1.txt'].stat().st_size, 4)
+        self.assertEqual(entries['file2.txt'].stat().st_size, 8)
 
     def test_stat(self):
         entries = list(self.scandir_func(test_path))
         for entry in entries:
             os_stat = os.stat(os.path.join(test_path, entry.name))
             scandir_stat = entry.stat()
-            self.assertEquals(os_stat.st_mode, scandir_stat.st_mode)
-            self.assertEquals(int(os_stat.st_mtime), int(scandir_stat.st_mtime))
-            self.assertEquals(int(os_stat.st_ctime), int(scandir_stat.st_ctime))
-            self.assertEquals(os_stat.st_size, scandir_stat.st_size)
+            self.assertEqual(os_stat.st_mode, scandir_stat.st_mode)
+            self.assertEqual(int(os_stat.st_mtime), int(scandir_stat.st_mtime))
+            self.assertEqual(int(os_stat.st_ctime), int(scandir_stat.st_ctime))
+            self.assertEqual(os_stat.st_size, scandir_stat.st_size)
 
     def test_returns_iter(self):
         it = self.scandir_func(test_path)
@@ -53,11 +63,11 @@ class TestMixin(object):
 
     def check_file_attributes(self, result):
         self.assertTrue(hasattr(result, 'st_file_attributes'))
-        self.assertTrue(isinstance(result.st_file_attributes, (int, long)))
+        self.assertTrue(isinstance(result.st_file_attributes, int_types))
         self.assertTrue(0 <= result.st_file_attributes <= 0xFFFFFFFF)
 
     def test_file_attributes(self):
-        if sys.platform != 'win32' or self.scandir_func == scandir.scandir_generic:
+        if sys.platform != 'win32' or not self.has_file_attributes:
             # st_file_attributes is Win32 specific (but can't use
             # unittest.skipUnless on Python 2.6)
             self._show_skipped()
@@ -68,13 +78,13 @@ class TestMixin(object):
         # test st_file_attributes on a file (FILE_ATTRIBUTE_DIRECTORY not set)
         result = entries['file1.txt'].stat()
         self.check_file_attributes(result)
-        self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY, 0)
+        self.assertEqual(result.st_file_attributes & FILE_ATTRIBUTE_DIRECTORY, 0)
 
         # test st_file_attributes on a directory (FILE_ATTRIBUTE_DIRECTORY set)
         result = entries['subdir'].stat()
         self.check_file_attributes(result)
-        self.assertEqual(result.st_file_attributes & scandir.FILE_ATTRIBUTE_DIRECTORY,
-                         scandir.FILE_ATTRIBUTE_DIRECTORY)
+        self.assertEqual(result.st_file_attributes & FILE_ATTRIBUTE_DIRECTORY,
+                         FILE_ATTRIBUTE_DIRECTORY)
 
     def test_path(self):
         entries = sorted(self.scandir_func(test_path), key=lambda e: e.name)
@@ -118,29 +128,78 @@ class TestMixin(object):
         finally:
             self._symlink_teardown()
 
+    def test_bytes(self):
+        # Check that unicode filenames are returned correctly as bytes in output
+        path = os.path.join(test_path, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
+        self.assertIsInstance(path, bytes)
+        entries = [e for e in self.scandir_func(path) if e.name.startswith(b'unicod')]
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+
+        self.assertIsInstance(entry.name, bytes)
+        self.assertIsInstance(entry.path, bytes)
+
+        # b'unicod?.txt' on Windows, b'unicod\xc6\x8f.txt' (UTF-8) or similar on POSIX
+        entry_name = u'unicod\u018f.txt'.encode(sys.getfilesystemencoding(), 'replace')
+        self.assertEqual(entry.name, entry_name)
+        self.assertEqual(entry.path, os.path.join(path, entry_name))
+
+    def test_unicode(self):
+        # Check that unicode filenames are returned correctly as (unicode) str in output
+        path = os.path.join(test_path, 'subdir')
+        if not IS_PY3:
+            path = path.decode(sys.getfilesystemencoding(), 'replace')
+        self.assertIsInstance(path, str)
+        entries = [e for e in self.scandir_func(path) if e.name.startswith('unicod')]
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+
+        self.assertIsInstance(entry.name, str)
+        self.assertIsInstance(entry.path, str)
+
+        entry_name = u'unicod\u018f.txt'
+        self.assertEqual(entry.name, entry_name)
+        self.assertEqual(entry.path, os.path.join(path, u'unicod\u018f.txt'))
+
+        # Check that it handles unicode input properly
+        path = os.path.join(test_path, 'subdir', u'unidir\u018f')
+        self.assertIsInstance(path, str)
+        entries = list(self.scandir_func(path))
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+
+        self.assertIsInstance(entry.name, str)
+        self.assertIsInstance(entry.path, str)
+        self.assertEqual(entry.name, 'file1.txt')
+        self.assertEqual(entry.path, os.path.join(path, 'file1.txt'))
+
     # TODO ben: add tests for follow_symlinks parameters
-    # TODO ben: add tests for bytes/unicode
     # TODO ben: add tests for file not found is_dir/is_file/stat
 
 
-class TestScandirGeneric(unittest.TestCase, TestMixin):
-    def setUp(self):
-        self.scandir_func = scandir.scandir_generic
-
-
-if hasattr(scandir, 'scandir_python'):
-    class TestScandirPython(unittest.TestCase, TestMixin):
+if has_scandir:
+    class TestScandirGeneric(unittest.TestCase, TestMixin):
         def setUp(self):
-            self.scandir_func = scandir.scandir_python
+            self.scandir_func = scandir.scandir_generic
+            self.has_file_attributes = False
 
 
-if hasattr(scandir, 'scandir_c'):
-    class TestScandirC(unittest.TestCase, TestMixin):
-        def setUp(self):
-            self.scandir_func = scandir.scandir_c
+    if hasattr(scandir, 'scandir_python'):
+        class TestScandirPython(unittest.TestCase, TestMixin):
+            def setUp(self):
+                self.scandir_func = scandir.scandir_python
+                self.has_file_attributes = True
+
+
+    if hasattr(scandir, 'scandir_c'):
+        class TestScandirC(unittest.TestCase, TestMixin):
+            def setUp(self):
+                self.scandir_func = scandir.scandir_c
+                self.has_file_attributes = True
 
 
 if hasattr(os, 'scandir'):
     class TestScandirOS(unittest.TestCase, TestMixin):
         def setUp(self):
             self.scandir_func = os.scandir
+            self.has_file_attributes = True

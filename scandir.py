@@ -44,11 +44,10 @@ FILE_ATTRIBUTE_SYSTEM = 4
 FILE_ATTRIBUTE_TEMPORARY = 256
 FILE_ATTRIBUTE_VIRTUAL = 65536
 
-# 'unicode' isn't defined on Python 3
-try:
-    unicode
-except NameError:
-    unicode = str
+IS_PY3 = sys.version_info >= (3, 0)
+
+if not IS_PY3:
+    str = unicode
 
 _scandir = None
 
@@ -112,7 +111,7 @@ class GenericDirEntry(object):
     __repr__ = __str__
 
 
-def scandir_generic(path='.'):
+def scandir_generic(path=u'.'):
     """Like os.listdir(), but yield DirEntry objects instead of returning
     a list of names.
     """
@@ -283,11 +282,12 @@ if sys.platform == 'win32':
         exc.filename = filename
         return exc
 
-    def scandir_python(path='.'):
+    def scandir_python(path=u'.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
         # Call FindFirstFile and handle errors
+        is_bytes = isinstance(path, bytes)
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
         filename = join(path, '*.*')
@@ -306,6 +306,8 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
+                    if is_bytes:
+                        name = name.encode('mbcs', 'replace')
                     yield Win32DirEntryPython(path, name, data)
 
                 data = wintypes.WIN32_FIND_DATAW()
@@ -384,8 +386,11 @@ if sys.platform == 'win32':
 
             __repr__ = __str__
 
-        def scandir_c(path='.'):
-            for name, stat in scandir_helper(unicode(path)):
+        def scandir_c(path=u'.'):
+            is_bytes = isinstance(path, bytes)
+            for name, stat in scandir_helper(path):
+                if is_bytes:
+                    name = name.encode('mbcs', 'replace')
                 yield Win32DirEntryC(path, name, stat)
 
         scandir = scandir_c
@@ -524,7 +529,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         exc.filename = filename
         return exc
 
-    def scandir_python(path='.'):
+    def scandir_python(path=u'.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
@@ -551,8 +556,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
         scandir_helper = _scandir.scandir_helper
 
-        def scandir_c(path='.'):
-            if not isinstance(path, unicode):
+        def scandir_c(path=u'.'):
+            if not isinstance(path, str):
                 path = path.decode(file_system_encoding)
             for name, d_type in scandir_helper(path):
                 yield PosixDirEntry(path, name, d_type)

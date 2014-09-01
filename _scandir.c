@@ -492,11 +492,11 @@ struct dirent *ep;
         return NULL;
     }
 
-    if (fi->path.arg_is_wide) {
-        return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
-    } else {
-        return Py_BuildValue("yN", ep->d_name, FROM_LONG(ep->d_type));
-    }
+#if PY_MAJOR_VERSION >= 3
+    return Py_BuildValue("yN", ep->d_name, FROM_LONG(ep->d_type));
+#else
+    return Py_BuildValue("sN", ep->d_name, FROM_LONG(ep->d_type));
+#endif
 }
 
 #endif

@@ -537,7 +537,13 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
-        dir_p = opendir(path.encode(file_system_encoding))
+        if isinstance(path, bytes):
+            opendir_path = path
+            is_bytes = True
+        else:
+            opendir_path = path.encode(file_system_encoding)
+            is_bytes = False
+        dir_p = opendir(opendir_path)
         if not dir_p:
             raise posix_error(path)
         try:
@@ -548,8 +554,10 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                     raise posix_error(path)
                 if not result:
                     break
-                name = entry.d_name.decode(file_system_encoding)
-                if name not in ('.', '..'):
+                name = entry.d_name
+                if name not in (b'.', b'..'):
+                    if not is_bytes:
+                        name = name.decode(file_system_encoding)
                     yield PosixDirEntry(path, name, entry.d_type)
         finally:
             if closedir(dir_p):
@@ -561,9 +569,10 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         scandir_helper = _scandir.scandir_helper
 
         def scandir_c(path=u'.'):
-            if not isinstance(path, str):
-                path = path.decode(file_system_encoding)
+            is_bytes = isinstance(path, bytes)
             for name, d_type in scandir_helper(path):
+                if not is_bytes:
+                    name = name.decode(file_system_encoding)
                 yield PosixDirEntry(path, name, d_type)
 
         scandir = scandir_c

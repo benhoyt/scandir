@@ -287,10 +287,14 @@ if sys.platform == 'win32':
         a list of names.
         """
         # Call FindFirstFile and handle errors
-        is_bytes = isinstance(path, bytes)
+        if isinstance(path, bytes):
+            is_bytes = True
+            filename = join(path.decode('mbcs', 'strict'), '*.*')
+        else:
+            is_bytes = False
+            filename = join(path, '*.*')
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        filename = join(path, '*.*')
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()

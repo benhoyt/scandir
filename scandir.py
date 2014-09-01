@@ -112,6 +112,14 @@ class GenericDirEntry(object):
     __repr__ = __str__
 
 
+def scandir_generic(path='.'):
+    """Like os.listdir(), but yield DirEntry objects instead of returning
+    a list of names.
+    """
+    for name in listdir(path):
+        yield GenericDirEntry(path, name)
+
+
 if sys.platform == 'win32':
     from ctypes import wintypes
 
@@ -119,6 +127,7 @@ if sys.platform == 'win32':
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
     ERROR_FILE_NOT_FOUND = 2
     ERROR_NO_MORE_FILES = 18
+    IO_REPARSE_TAG_SYMLINK = 0xA000000C
 
     # Numer of seconds between 1601-01-01 and 1970-01-01
     SECONDS_BETWEEN_EPOCHS = 11644473600
@@ -180,7 +189,9 @@ if sys.platform == 'win32':
             st_mode |= 0o444
         else:
             st_mode |= 0o666
-        if attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+        if (attributes & FILE_ATTRIBUTE_REPARSE_POINT and
+                data.dwReserved0 == IO_REPARSE_TAG_SYMLINK):
+            st_mode ^= st_mode & 0o170000
             st_mode |= S_IFLNK
 
         st_size = data.nFileSizeHigh << 32 | data.nFileSizeLow
@@ -197,7 +208,7 @@ if sys.platform == 'win32':
                                int(st_ctime * 1000000000),
                                attributes)
 
-    class Win32DirEntry(object):
+    class Win32DirEntryPython(object):
         __slots__ = ('name', '_stat', '_lstat', '_find_data', '_scandir_path', '_path')
 
         def __init__(self, scandir_path, name, find_data):
@@ -259,7 +270,8 @@ if sys.platform == 'win32':
 
         def is_symlink(self):
             return (self._find_data.dwFileAttributes &
-                    FILE_ATTRIBUTE_REPARSE_POINT != 0)
+                        FILE_ATTRIBUTE_REPARSE_POINT != 0 and
+                    self._find_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK)
 
         def __str__(self):
             return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
@@ -271,7 +283,7 @@ if sys.platform == 'win32':
         exc.filename = filename
         return exc
 
-    def scandir(path='.'):
+    def scandir_python(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
@@ -294,7 +306,7 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    yield Win32DirEntry(path, name, data)
+                    yield Win32DirEntryPython(path, name, data)
 
                 data = wintypes.WIN32_FIND_DATAW()
                 data_p = ctypes.byref(data)
@@ -313,7 +325,7 @@ if sys.platform == 'win32':
 
         scandir_helper = _scandir.scandir_helper
 
-        class Win32DirEntry(object):
+        class Win32DirEntryC(object):
             __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
 
             def __init__(self, scandir_path, name, lstat):
@@ -372,12 +384,14 @@ if sys.platform == 'win32':
 
             __repr__ = __str__
 
-        def scandir(path='.'):
+        def scandir_c(path='.'):
             for name, stat in scandir_helper(unicode(path)):
-                yield Win32DirEntry(path, name, stat)
+                yield Win32DirEntryC(path, name, stat)
+
+        scandir = scandir_c
 
     except ImportError:
-        pass
+        scandir = scandir_python
 
 
 # Linux, OS X, and BSD implementation
@@ -510,7 +524,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         exc.filename = filename
         return exc
 
-    def scandir(path='.'):
+    def scandir_python(path='.'):
         """Like os.listdir(), but yield DirEntry objects instead of returning
         a list of names.
         """
@@ -537,29 +551,21 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
 
         scandir_helper = _scandir.scandir_helper
 
-        def scandir(path='.'):
+        def scandir_c(path='.'):
             if not isinstance(path, unicode):
                 path = path.decode(file_system_encoding)
             for name, d_type in scandir_helper(path):
                 yield PosixDirEntry(path, name, d_type)
 
+        scandir = scandir_c
+
     except ImportError:
-        pass
+        scandir = scandir_python
 
 
 # Some other system -- no d_type or stat information
 else:
-    def scandir(path='.'):
-        """Like os.listdir(), but yield DirEntry objects instead of returning
-        a list of names.
-        """
-        for name in listdir(path):
-            yield GenericDirEntry(path, name)
-
-
-# Override with Python 3.5's built-in os.scandir() if available
-if hasattr(os, 'scandir'):
-    scandir = os.scandir
+    scandir = scandir_generic
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):

@@ -11188,7 +11188,7 @@ DirEntry_dealloc(DirEntry *entry)
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
 
-typedef unsigned char mode_t;
+typedef unsigned short mode_t;
 
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
@@ -11351,14 +11351,11 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
         unsigned long dir_bits = self->win32_lstat.st_file_attributes &
                                  FILE_ATTRIBUTE_DIRECTORY;
-        result = (mode_bits == S_IFDIR) ? dir_bits != 0 : dir_bits == 0;
+        result = (mode_bits == S_IFDIR) ? dir_bits != 0 :
+                                          dir_bits == 0;
 #else
-        if (mode_bits == S_IFDIR) {
-            result = self->d_type == DT_DIR;
-        }
-        else {
-            result = self->d_type == DT_REG;
-        }
+        result = (mode_bits == S_IFDIR) ? self->d_type == DT_DIR :
+                                          self->d_type == DT_REG;
 #endif
     }
 

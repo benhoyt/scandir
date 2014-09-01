@@ -21,7 +21,7 @@ import ctypes
 import os
 import sys
 
-__version__ = '0.8'
+__version__ = '0.9'
 __all__ = ['scandir', 'walk']
 
 # Windows FILE_ATTRIBUTE constants for interpreting the

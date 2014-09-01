@@ -1,5 +1,6 @@
 *.pyc
 *.pyd
+*.so
 *.sublime-project
 *.sublime-workspace
 benchtree

@@ -31,8 +31,8 @@ class TestMixin(object):
         entries = sorted(self.scandir_func(test_path), key=lambda e: e.name)
         self.assertEqual([(e.name, e.is_dir()) for e in entries],
                          [('file1.txt', False), ('file2.txt', False), ('subdir', True)])
-
-        # TODO ben: test .path attribute
+        self.assertEqual([e.path for e in entries],
+                         [os.path.join(test_path, e.name) for e in entries])
 
     def test_dir_entry(self):
         entries = dict((e.name, e) for e in self.scandir_func(test_path))

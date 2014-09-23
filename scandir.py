@@ -251,6 +251,8 @@ if sys.platform == 'win32':
                     if e.errno != ENOENT:
                         raise
                     return False
+            elif self.is_symlink():
+                return False
             else:
                 return (self._find_data.dwFileAttributes &
                         FILE_ATTRIBUTE_DIRECTORY != 0)
@@ -263,6 +265,8 @@ if sys.platform == 'win32':
                     if e.errno != ENOENT:
                         raise
                     return False
+            elif self.is_symlink():
+                return False
             else:
                 return (self._find_data.dwFileAttributes &
                         FILE_ATTRIBUTE_DIRECTORY == 0)
@@ -391,11 +395,13 @@ if sys.platform == 'win32':
             __repr__ = __str__
 
         def scandir_c(path=u'.'):
-            is_bytes = isinstance(path, bytes)
-            for name, stat in scandir_helper(path):
-                if is_bytes:
+            if isinstance(path, bytes):
+                for name, stat in scandir_helper(path.decode('mbcs', 'replace')):
                     name = name.encode('mbcs', 'replace')
-                yield Win32DirEntryC(path, name, stat)
+                    yield Win32DirEntryC(path, name, stat)
+            else:
+                for name, stat in scandir_helper(path):
+                    yield Win32DirEntryC(path, name, stat)
 
         scandir = scandir_c
 

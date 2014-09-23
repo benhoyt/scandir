@@ -178,11 +178,14 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
     PyObject *st_mode = NULL;
     int mode;
     int result = 0;
+    int is_symlink;
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-    if (follow_symlinks && (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
+    is_symlink = (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;
+    if (follow_symlinks && is_symlink) {
 #else
-    if (self->d_type == DT_UNKNOWN || (follow_symlinks && self->d_type == DT_LNK)) {
+    is_symlink = self->d_type == DT_LNK;
+    if (self->d_type == DT_UNKNOWN || (follow_symlinks && is_symlink)) {
 #endif
         stat = DirEntry_do_stat(self, follow_symlinks);
         if (!stat) {
@@ -203,6 +206,9 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
         Py_DECREF(st_mode);
         Py_DECREF(stat);
         result = (mode & S_IFMT) == mode_bits;
+    }
+    else if (is_symlink) {
+        result = 0;
     }
     else {
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)

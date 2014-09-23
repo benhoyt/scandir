@@ -10,4 +10,5 @@ build.bat
 upload.bat
 MANIFEST
 test/*.log
+test/testdir
 __pycache__

@@ -14,12 +14,7 @@ except ImportError:
 
 FILE_ATTRIBUTE_DIRECTORY = 16
 
-try:
-    from test import support
-    test_path = support.TESTFN
-except ImportError:
-    test_path = u'@test_{0}_tmp'.format(os.getpid())
-# TODO ben: test_path = r'C:\work\scandir\TESTDIR'
+TEST_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'testdir'))
 
 IS_PY3 = sys.version_info >= (3, 0)
 
@@ -48,62 +43,78 @@ def create_file(path, contents='1234'):
         f.write(contents)
 
 
+def setup_main():
+    join = os.path.join
+
+    try:
+        os.mkdir(TEST_PATH)
+    except Exception as e:
+        print(repr(e), e.filename)
+        import time
+        time.sleep(500)
+        raise
+    os.mkdir(join(TEST_PATH, 'subdir'))
+    create_file(join(TEST_PATH, 'file1.txt'))
+    create_file(join(TEST_PATH, 'file2.txt'), contents='12345678')
+
+    os.mkdir(join(TEST_PATH, 'subdir', u'unidir\u018F'))
+    create_file(join(TEST_PATH, 'subdir', 'file1.txt'))
+    create_file(join(TEST_PATH, 'subdir', u'unicod\u018F.txt'))
+
+    create_file(join(TEST_PATH, 'subdir', u'unidir\u018F', 'file1.txt'))
+
+    os.mkdir(join(TEST_PATH, 'linkdir'))
+
+
+def setup_symlinks():
+    join = os.path.join
+
+    os.mkdir(join(TEST_PATH, 'linkdir', 'linksubdir'))
+    create_file(join(TEST_PATH, 'linkdir', 'file1.txt'))
+
+    os.symlink(os.path.abspath(join(TEST_PATH, 'linkdir', 'file1.txt')),
+               join(TEST_PATH, 'linkdir', 'link_to_file'))
+
+    dir_name = os.path.abspath(join(TEST_PATH, 'linkdir', 'linksubdir'))
+    dir_link = join(TEST_PATH, 'linkdir', 'link_to_dir')
+    if sys.version_info >= (3, 3):
+        # "target_is_directory" was only added in Python 3.3
+        os.symlink(dir_name, dir_link, target_is_directory=True)
+    else:
+        os.symlink(dir_name, dir_link)
+
+
+def teardown():
+    try:
+        shutil.rmtree(TEST_PATH)
+    except OSError:
+        # why does the above fail sometimes?
+        time.sleep(0.1)
+        shutil.rmtree(TEST_PATH)
+
+
 class TestMixin(object):
     def setUp(self):
-        join = os.path.join
-
-        os.mkdir(test_path)
-        os.mkdir(join(test_path, 'subdir'))
-        create_file(join(test_path, 'file1.txt'))
-        create_file(join(test_path, 'file2.txt'), contents='12345678')
-
-        os.mkdir(join(test_path, 'subdir', u'unidir\u018F'))
-        create_file(join(test_path, 'subdir', 'file1.txt'))
-        create_file(join(test_path, 'subdir', u'unicod\u018F.txt'))
-
-        create_file(join(test_path, 'subdir', u'unidir\u018F', 'file1.txt'))
-
-        os.mkdir(join(test_path, 'linkdir'))
-
-        if not symlinks_supported:
-            return
-
-        os.mkdir(join(test_path, 'linkdir', 'linksubdir'))
-        create_file(join(test_path, 'linkdir', 'file1.txt'))
-
-        os.symlink(os.path.abspath(join(test_path, 'linkdir', 'file1.txt')),
-                   join(test_path, 'linkdir', 'link_to_file'))
-
-        dir_name = os.path.abspath(join(test_path, 'linkdir', 'linksubdir'))
-        dir_link = join(test_path, 'linkdir', 'link_to_dir')
-        if sys.version_info >= (3, 3):
-            # "target_is_directory" was only added in Python 3.3
-            os.symlink(dir_name, dir_link, target_is_directory=True)
-        else:
-            os.symlink(dir_name, dir_link)
-
-    def tearDown(self):
-        try:
-            shutil.rmtree(test_path)
-        except OSError:
-            # why does the above fail sometimes?
-            time.sleep(0.1)
-            shutil.rmtree(test_path)
+        if not os.path.exists(TEST_PATH):
+            setup_main()
+        if symlinks_supported and not os.path.exists(
+                os.path.join(TEST_PATH, 'linkdir', 'linksubdir')):
+            setup_symlinks()
 
     if not hasattr(unittest.TestCase, 'skipTest'):
         def skipTest(self, reason):
             sys.stdout.write('skipped {0!r} '.format(reason))
 
     def test_basic(self):
-        entries = sorted(self.scandir_func(test_path), key=lambda e: e.name)
+        entries = sorted(self.scandir_func(TEST_PATH), key=lambda e: e.name)
         self.assertEqual([(e.name, e.is_dir()) for e in entries],
                          [('file1.txt', False), ('file2.txt', False),
                           ('linkdir', True), ('subdir', True)])
         self.assertEqual([e.path for e in entries],
-                         [os.path.join(test_path, e.name) for e in entries])
+                         [os.path.join(TEST_PATH, e.name) for e in entries])
 
     def test_dir_entry(self):
-        entries = dict((e.name, e) for e in self.scandir_func(test_path))
+        entries = dict((e.name, e) for e in self.scandir_func(TEST_PATH))
         e = entries['file1.txt']
         self.assertEqual([e.is_dir(), e.is_file(), e.is_symlink()], [False, True, False])
         e = entries['file2.txt']
@@ -115,9 +126,9 @@ class TestMixin(object):
         self.assertEqual(entries['file2.txt'].stat().st_size, 8)
 
     def test_stat(self):
-        entries = list(self.scandir_func(test_path))
+        entries = list(self.scandir_func(TEST_PATH))
         for entry in entries:
-            os_stat = os.stat(os.path.join(test_path, entry.name))
+            os_stat = os.stat(os.path.join(TEST_PATH, entry.name))
             scandir_stat = entry.stat()
             self.assertEqual(os_stat.st_mode, scandir_stat.st_mode)
             self.assertEqual(int(os_stat.st_mtime), int(scandir_stat.st_mtime))
@@ -126,7 +137,7 @@ class TestMixin(object):
                 self.assertEqual(os_stat.st_size, scandir_stat.st_size)
 
     def test_returns_iter(self):
-        it = self.scandir_func(test_path)
+        it = self.scandir_func(TEST_PATH)
         entry = next(it)
         assert hasattr(entry, 'name')
 
@@ -141,7 +152,7 @@ class TestMixin(object):
             # unittest.skipUnless on Python 2.6)
             return self.skipTest('st_file_attributes not supported')
 
-        entries = dict((e.name, e) for e in self.scandir_func(test_path))
+        entries = dict((e.name, e) for e in self.scandir_func(TEST_PATH))
 
         # test st_file_attributes on a file (FILE_ATTRIBUTE_DIRECTORY not set)
         result = entries['file1.txt'].stat()
@@ -154,18 +165,18 @@ class TestMixin(object):
         self.assertEqual(result.st_file_attributes & FILE_ATTRIBUTE_DIRECTORY,
                          FILE_ATTRIBUTE_DIRECTORY)
 
-    def test_path(self):
-        entries = sorted(self.scandir_func(test_path), key=lambda e: e.name)
+    def TEST_PATH(self):
+        entries = sorted(self.scandir_func(TEST_PATH), key=lambda e: e.name)
         self.assertEqual([os.path.basename(e.name) for e in entries],
                          ['file1.txt', 'file2.txt', 'linkdir', 'subdir'])
-        self.assertEqual([os.path.normpath(os.path.join(test_path, e.name)) for e in entries],
+        self.assertEqual([os.path.normpath(os.path.join(TEST_PATH, e.name)) for e in entries],
                          [os.path.normpath(e.path) for e in entries])
 
     def test_symlink(self):
         if not symlinks_supported:
             return self.skipTest('symbolic links not supported')
 
-        entries = sorted(self.scandir_func(os.path.join(test_path, 'linkdir')),
+        entries = sorted(self.scandir_func(os.path.join(TEST_PATH, 'linkdir')),
                          key=lambda e: e.name)
 
         self.assertEqual([(e.name, e.is_symlink()) for e in entries],
@@ -190,7 +201,7 @@ class TestMixin(object):
 
     def test_bytes(self):
         # Check that unicode filenames are returned correctly as bytes in output
-        path = os.path.join(test_path, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
+        path = os.path.join(TEST_PATH, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, bytes))
         entries = [e for e in self.scandir_func(path) if e.name.startswith(b'unicod')]
         self.assertEqual(len(entries), 1)
@@ -206,7 +217,7 @@ class TestMixin(object):
 
     def test_unicode(self):
         # Check that unicode filenames are returned correctly as (unicode) str in output
-        path = os.path.join(test_path, 'subdir')
+        path = os.path.join(TEST_PATH, 'subdir')
         if not IS_PY3:
             path = path.decode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, str))
@@ -222,7 +233,7 @@ class TestMixin(object):
         self.assertEqual(entry.path, os.path.join(path, u'unicod\u018f.txt'))
 
         # Check that it handles unicode input properly
-        path = os.path.join(test_path, 'subdir', u'unidir\u018f')
+        path = os.path.join(TEST_PATH, 'subdir', u'unidir\u018f')
         self.assertTrue(isinstance(path, str))
         entries = list(self.scandir_func(path))
         self.assertEqual(len(entries), 1)

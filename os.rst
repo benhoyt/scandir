@@ -1601,6 +1601,11 @@ features:
 
    Availability: Unix, Windows.
 
+   .. seealso::
+
+      :func:`scandir`, another function that returns directory entries but
+      gives better performance for many common use cases.
+
    .. versionchanged:: 3.2
       The *path* parameter became optional.
 
@@ -1904,7 +1909,7 @@ features:
    increase the performance of code that also needs file type or file
    attribute (stat) information, because :class:`DirEntry` objects
    expose the file attribute information the operating system provides
-   when scanning the directory. Specifically, the ``DirEntry`` *is_X()*
+   when scanning a directory. Specifically, the :class:`DirEntry` *is_X()*
    methods generally require no extra system calls on both Unix-based
    systems and Windows, and :func:`DirEntry.stat` requires no extra
    system calls on Windows.
@@ -1915,9 +1920,9 @@ features:
    type ``bytes``, the ``name`` and ``path`` attributes will be ``bytes``.
 
    The following example shows a simple use of :func:`scandir` to
-   display all the filenames in the given *path* that don't start with
-   ``'.'`` (dot). Note that the ``entry.is_file()`` call will generally not
-   make an additional operating system call::
+   display all the files (not directories) in the given *path* that don't
+   start with ``'.'``. Note that the ``entry.is_file()`` call will
+   generally not make an additional operating system call::
 
       for entry in os.scandir(path):
          if not entry.name.startswith('.') and entry.is_file():
@@ -1948,18 +1953,19 @@ features:
    :func:`scandir` will provide as much of this information as possible
    without making additional system calls. When a system call is required (a
    ``stat`` or ``lstat`` call), the ``DirEntry`` object will cache the
-   result on the entry object. These objects are not intended to be
-   long-lived; if you need to "refresh" the cache or get updated
-   information, call :func:`os.stat` or :func:`os.path.isdir` or similar.
+   result on the entry object. ``DirEntry`` objects are not intended to be
+   long-lived; if time has elapsed and you need to fetch up-to-date
+   information, call ``os.stat(entry.path)`` or ``os.path.isdir(entry.path)``
+   or similar.
 
    Because the ``DirEntry`` methods *may* make operating system calls, they
    may also raise :exc:`OSError` in certain cases, for example, if a file
    is deleted between calling :func:`scandir` and calling
    :func:`DirEntry.stat`. If you need very fine-grained control over
-   errors, you may want to catch :exc:`OSError` when calling a ``DirEntry``
-   method and handle as appropriate.
+   errors, you can catch :exc:`OSError` when calling one of the ``DirEntry``
+   methods and handle as appropriate.
 
-   Attributes and methods are as follows:
+   Attributes and methods on a ``DirEntry`` instance are as follows:
 
    .. attribute:: name
 
@@ -1982,8 +1988,9 @@ features:
       is a directory, ``False`` if it points to a symlink or another kind
       of file.
 
-      ``False`` is also returned if the path doesn't exist or is a broken
-      symlink; other errors (such as permission errors) are propagated.
+      ``False`` is also returned if the path doesn't exist anymore or is
+      a broken symlink; other errors (such as permission errors) are
+      propagated.
 
    .. method:: is_file(*, follow_symlinks=True)
 
@@ -1994,16 +2001,18 @@ features:
       If *follow_symlinks* is false, return ``True`` only if this entry is a file,
       ``False`` if it points to a symlink or another kind of file.
 
-      ``False`` is also returned if the path doesn't exist or is a broken
-      symlink; other errors (such as permission errors) are propagated.
+      ``False`` is also returned if the path doesn't exist anymore or is
+      a broken symlink; other errors (such as permission errors) are
+      propagated.
 
    .. method:: is_symlink()
 
-      Return ``True`` only if this entry is a symbolic link, ``False`` if
-      it points to a another kind of file.
+      Return ``True`` if this entry is a symbolic link, ``False`` if it
+      points to a another kind of file.
 
-      ``False`` is also returned if the path doesn't exist or is a broken
-      symlink; other errors (such as permission errors) are propagated.
+      ``False`` is also returned if the path doesn't exist anymore or is
+      a broken symlink; other errors (such as permission errors) are
+      propagated.
 
    .. method:: stat(*, follow_symlinks=True)
 
@@ -2012,8 +2021,9 @@ features:
       ``follow_symlinks=False``.
 
       On Windows, this method does not generally require a system call;
-      however, for implementation and performance reasons, the ``st_ino``,
-      ``st_dev`` and ``st_nlink`` attributes will always be set to zero.
+      however, for implementation and performance reasons, the return value's
+      ``st_ino``, ``st_dev`` and ``st_nlink`` attributes will always be set
+      to zero.
 
 
 .. function:: stat(path, \*, dir_fd=None, follow_symlinks=True)

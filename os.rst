@@ -1909,10 +1909,10 @@ features:
    increase the performance of code that also needs file type or file
    attribute (stat) information, because :class:`DirEntry` objects
    expose the file attribute information the operating system provides
-   when scanning a directory. Specifically, the :class:`DirEntry` *is_X()*
-   methods generally require no extra system calls on both Unix-based
-   systems and Windows, and :func:`DirEntry.stat` requires no extra
-   system calls on Windows.
+   when scanning a directory. Specifically, :func:`DirEntry.is_dir` and
+   :func:`DirEntry.is_file` usually only require a system call for symbolic
+   links (on both Unix and Windows), and :func:`DirEntry.stat` always requires
+   a system call on Unix but only requires one for symbolic links on Windows.
 
    If *path* is of type ``str`` (recommended, and also the default when *path*
    is not specified), the ``name`` and ``path`` attributes of the
@@ -1951,12 +1951,13 @@ features:
    attributes of a directory entry.
 
    :func:`scandir` will provide as much of this information as possible
-   without making additional system calls. When a system call is required (a
-   ``stat`` or ``lstat`` call), the ``DirEntry`` object will cache the
-   result on the entry object. ``DirEntry`` objects are not intended to be
-   long-lived; if time has elapsed and you need to fetch up-to-date
-   information, call ``os.stat(entry.path)`` or ``os.path.isdir(entry.path)``
-   or similar.
+   without making additional system calls. When a system call *is* made (it
+   will be a ``stat`` or ``lstat`` system call), the ``DirEntry`` object will
+   cache the result on the entry object. ``DirEntry`` instances are not
+   intended to be stored in long-lived data structures; if you know the file
+   metadata has changed or if a long time has elapsed since calling
+   :func:`scandir`, call ``os.stat(entry.path)`` or similar to fetch
+   up-to-date information.
 
    Because the ``DirEntry`` methods *may* make operating system calls, they
    may also raise :exc:`OSError` in certain cases, for example, if a file

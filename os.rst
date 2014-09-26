@@ -1971,39 +1971,45 @@ features:
 
       The entry's base filename, relative to the :func:`scandir` *path*
       argument; this field corresponds to the names returned by
-      :func:`listdir`.
+      :func:`listdir`. Will be of type ``str`` if the original
+      :func:`scandir` *path* argument was a ``str`` (recommended), otherwise
+      ``bytes``.
 
    .. attribute:: path
 
-      The entry's full path name (not necessarily an absolute path); the
-      equivalent of ``os.path.join(scandir_path, entry.name)``.
+      The entry's full path name (an absolute path only if the original
+      :func:`scandir` *path* argument was absolute); this field is
+      equivalent to ``os.path.join(scandir_path, entry.name)``. Will
+      be of type ``str`` if the original :func:`scandir` *path* argument
+      was a ``str`` (recommended), otherwise ``bytes``.
 
    .. method:: is_dir(*, follow_symlinks=True)
 
-      If *follow_symlinks* is true (the default), return ``True`` if the
+      If *follow_symlinks* is ``True`` (the default), return ``True`` if the
       entry is a directory or a symbolic link pointing to a directory,
       ``False`` if it points to another kind of file.
 
-      If *follow_symlinks* is false, return ``True`` only if this entry
-      is a directory, ``False`` if it points to a symlink or another kind
-      of file.
+      If *follow_symlinks* is ``False``, return ``True`` only if this entry
+      is a directory, ``False`` if it points to a symbolic link or another
+      kind of file.
 
       ``False`` is also returned if the path doesn't exist anymore or is
-      a broken symlink; other errors (such as permission errors) are
-      propagated.
+      a broken symbolic link; other errors (such as permission errors) are
+      propagated as :exc:`OSError`.
 
    .. method:: is_file(*, follow_symlinks=True)
 
-      If *follow_symlinks* is true (the default), return ``True`` if the
-      entry is a file or a symbolic link pointing to a file, ``False`` if
-      it points to another kind of file.
+      If *follow_symlinks* is ``True`` (the default), return ``True`` if the
+      entry is a regular file or a symbolic link pointing to a regular file,
+      ``False`` if it points to another kind of file.
 
-      If *follow_symlinks* is false, return ``True`` only if this entry is a file,
-      ``False`` if it points to a symlink or another kind of file.
+      If *follow_symlinks* is ``False``, return ``True`` only if this entry
+      is a regular file, ``False`` if it points to a symbolic link or another
+      kind of file.
 
       ``False`` is also returned if the path doesn't exist anymore or is
-      a broken symlink; other errors (such as permission errors) are
-      propagated.
+      a broken symbolic link; other errors (such as permission errors) are
+      propagated as :exc:`OSError`.
 
    .. method:: is_symlink()
 
@@ -2011,19 +2017,19 @@ features:
       points to a another kind of file.
 
       ``False`` is also returned if the path doesn't exist anymore or is
-      a broken symlink; other errors (such as permission errors) are
-      propagated.
+      a broken symbolic link; other errors (such as permission errors) are
+      propagated as :exc:`OSError`.
 
    .. method:: stat(*, follow_symlinks=True)
 
       Return a :class:`stat_result` object for this entry. This function
-      normally follows symlinks; to stat a symlink add the argument
-      ``follow_symlinks=False``.
+      normally follows symbolic links; to stat a symbolic link add the
+      argument ``follow_symlinks=False``.
 
       On Windows, this method does not generally require a system call;
       however, for implementation and performance reasons, the return value's
       ``st_ino``, ``st_dev`` and ``st_nlink`` attributes will always be set
-      to zero.
+      to zero. Call :func:`os.stat` if these fields are required.
 
 
 .. function:: stat(path, \*, dir_fd=None, follow_symlinks=True)

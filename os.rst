@@ -1909,10 +1909,11 @@ features:
    increase the performance of code that also needs file type or file
    attribute (stat) information, because :class:`DirEntry` objects
    expose the file attribute information the operating system provides
-   when scanning a directory. Specifically, :func:`DirEntry.is_dir` and
-   :func:`DirEntry.is_file` usually only require a system call for symbolic
-   links (on both Unix and Windows), and :func:`DirEntry.stat` always requires
-   a system call on Unix but only requires one for symbolic links on Windows.
+   when scanning a directory. All :class:`DirEntry` methods may perform a
+   system call, but :func:`DirEntry.is_dir` and :func:`DirEntry.is_file`
+   usually only require a system call for symbolic links (on both Unix and
+   Windows), and :func:`DirEntry.stat` always requires a system call on Unix
+   but only requires one for symbolic links on Windows.
 
    If *path* is of type ``str`` (recommended, and also the default when *path*
    is not specified), the ``name`` and ``path`` attributes of the

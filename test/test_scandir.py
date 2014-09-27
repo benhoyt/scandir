@@ -165,7 +165,7 @@ class TestMixin(object):
         self.assertEqual(result.st_file_attributes & FILE_ATTRIBUTE_DIRECTORY,
                          FILE_ATTRIBUTE_DIRECTORY)
 
-    def TEST_PATH(self):
+    def test_path(self):
         entries = sorted(self.scandir_func(TEST_PATH), key=lambda e: e.name)
         self.assertEqual([os.path.basename(e.name) for e in entries],
                          ['file1.txt', 'file2.txt', 'linkdir', 'subdir'])

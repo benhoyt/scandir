@@ -244,28 +244,30 @@ if sys.platform == 'win32':
                 return self._lstat
 
         def is_dir(self, follow_symlinks=True):
-            if follow_symlinks and self.is_symlink():
+            is_symlink = self.is_symlink()
+            if follow_symlinks and is_symlink:
                 try:
                     return self.stat().st_mode & 0o170000 == S_IFDIR
                 except OSError as e:
                     if e.errno != ENOENT:
                         raise
                     return False
-            elif self.is_symlink():
+            elif is_symlink:
                 return False
             else:
                 return (self._find_data.dwFileAttributes &
                         FILE_ATTRIBUTE_DIRECTORY != 0)
 
         def is_file(self, follow_symlinks=True):
-            if follow_symlinks and self.is_symlink():
+            is_symlink = self.is_symlink()
+            if follow_symlinks and is_symlink:
                 try:
                     return self.stat().st_mode & 0o170000 == S_IFREG
                 except OSError as e:
                     if e.errno != ENOENT:
                         raise
                     return False
-            elif self.is_symlink():
+            elif is_symlink:
                 return False
             else:
                 return (self._find_data.dwFileAttributes &

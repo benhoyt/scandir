@@ -1,7 +1,5 @@
 // scandir C speedups
 //
-// TODO: this is a work in progress!
-//
 // There's a fair bit of PY_MAJOR_VERSION boilerplate to support both Python 2
 // and Python 3 -- the structure of this is taken from here:
 // http://docs.python.org/3.3/howto/cporting.html

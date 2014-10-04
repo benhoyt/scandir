@@ -535,6 +535,7 @@ typedef struct {
 static void
 ScandirIterator_dealloc(ScandirIterator *iterator)
 {
+    Py_XDECREF(iterator->path.object);
     path_cleanup(&iterator->path);
     Py_TYPE(iterator)->tp_free((PyObject *)iterator);
 }
@@ -773,6 +774,12 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         Py_DECREF(iterator);
         return NULL;
     }
+
+    /* path_converter doesn't keep path.object around, so do it
+       manually for the lifetime of the iterator here (the refcount
+       is decremented in ScandirIterator_dealloc)
+    */
+    Py_XINCREF(iterator->path.object);
 
     return (PyObject *)iterator;
 }

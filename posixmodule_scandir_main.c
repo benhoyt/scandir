@@ -11,6 +11,10 @@ Ben's notes:
   - initial Py_ARRAY_LENGTH(namebuf)-4 value of "len" is not used
   - "po" is not used
 
+* haypo's feedback:
+  - he'd prefer if DirEntry.path was a read-only property (store scandir_path
+    and join to name on demand)
+  - 
 */
 
 #include "structmember.h"
@@ -18,7 +22,7 @@ Ben's notes:
 PyDoc_STRVAR(posix_scandir__doc__,
 "scandir(path='.') -> iterator of DirEntry objects for given path");
 
-static char *_follow_symlinks_keywords[] = {"follow_symlinks", NULL};
+static char *follow_symlinks_keywords[] = {"follow_symlinks", NULL};
 
 typedef struct {
     PyObject_HEAD
@@ -26,7 +30,7 @@ typedef struct {
     PyObject *path;
     PyObject *stat;
     PyObject *lstat;
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#ifdef MS_WINDOWS
     struct win32_stat win32_lstat;
 #else
     unsigned char d_type;
@@ -43,9 +47,7 @@ DirEntry_dealloc(DirEntry *entry)
     Py_TYPE(entry)->tp_free((PyObject *)entry);
 }
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-
-typedef unsigned short mode_t;
+#ifdef MS_WINDOWS
 
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
@@ -54,7 +56,17 @@ DirEntry_is_symlink(DirEntry *self)
 }
 
 static PyObject *
-DirEntry_do_stat(DirEntry *self, int follow_symlinks)
+DirEntry_get_lstat(DirEntry *self)
+{
+    if (!self->lstat) {
+        self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+    }
+    Py_XINCREF(self->lstat);
+    return self->lstat;
+}
+
+static PyObject *
+DirEntry_get_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
@@ -64,35 +76,26 @@ DirEntry_do_stat(DirEntry *self, int follow_symlinks)
                 if (!path_converter(self->path, &path)) {
                     return NULL;
                 }
-                self->stat = posix_do_stat("DirEntry.stat", &path,
-                                           DEFAULT_DIR_FD, follow_symlinks);
+                self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
                 path_cleanup(&path);
             }
             else {
-                if (!self->lstat) {
-                    self->lstat = _pystat_fromstructstat(&self->win32_lstat);
-                }
-                Py_XINCREF(self->lstat);
-                self->stat = self->lstat;
+                self->stat = DirEntry_get_lstat(self);
             }
         }
         Py_XINCREF(self->stat);
         return self->stat;
     }
     else {
-        if (!self->lstat) {
-            self->lstat = _pystat_fromstructstat(&self->win32_lstat);
-        }
-        Py_XINCREF(self->lstat);
-        return self->lstat;
+        return DirEntry_get_lstat(self);
     }
 }
 
-#else  /* POSIX || HAVE_OPENDIR */
+#else  /* POSIX */
 
 /* Forward reference */
 static PyObject *
-DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits);
+DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
@@ -101,7 +104,7 @@ DirEntry_is_symlink(DirEntry *self)
         return PyBool_FromLong(self->d_type == DT_LNK);
     }
     else {
-        return DirEntry_is_dir_file(self, 0, S_IFLNK);
+        return DirEntry_test_mode(self, 0, S_IFLNK);
     }
 }
 
@@ -120,7 +123,17 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 }
 
 static PyObject *
-DirEntry_do_stat(DirEntry *self, int follow_symlinks)
+DirEntry_get_lstat(DirEntry *self)
+{
+    if (!self->lstat) {
+        self->lstat = DirEntry_fetch_stat(self, 0);
+    }
+    Py_XINCREF(self->lstat);
+    return self->lstat;
+}
+
+static PyObject *
+DirEntry_get_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
@@ -136,22 +149,14 @@ DirEntry_do_stat(DirEntry *self, int follow_symlinks)
                 self->stat = DirEntry_fetch_stat(self, 1);
             }
             else {
-                if (!self->lstat) {
-                    self->lstat = DirEntry_fetch_stat(self, 0);
-                }
-                Py_XINCREF(self->lstat);
-                self->stat = self->lstat;
+                self->stat = DirEntry_get_lstat(self);
             }
         }
         Py_XINCREF(self->stat);
         return self->stat;
     }
     else {
-        if (!self->lstat) {
-            self->lstat = DirEntry_fetch_stat(self, 0);
-        }
-        Py_XINCREF(self->lstat);
-        return self->lstat;
+        return DirEntry_get_lstat(self);
     }
 }
 
@@ -163,31 +168,34 @@ DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
     int follow_symlinks = 1;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.stat",
-                                     _follow_symlinks_keywords,
+                                     follow_symlinks_keywords,
                                      &follow_symlinks)) {
         return NULL;
     }
 
-    return DirEntry_do_stat(self, follow_symlinks);
+    return DirEntry_get_stat(self, follow_symlinks);
 }
 
 static PyObject *
-DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
+DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
 {
     PyObject *stat = NULL;
     PyObject *st_mode = NULL;
     int mode;
     int result = 0;
     int is_symlink;
+    int need_stat;
+    unsigned long dir_bits;
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#ifdef MS_WINDOWS
     is_symlink = (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;
-    if (follow_symlinks && is_symlink) {
+    need_stat = follow_symlinks && is_symlink;
 #else
     is_symlink = self->d_type == DT_LNK;
-    if (self->d_type == DT_UNKNOWN || (follow_symlinks && is_symlink)) {
+    need_stat = self->d_type == DT_UNKNOWN || (follow_symlinks && is_symlink);
 #endif
-        stat = DirEntry_do_stat(self, follow_symlinks);
+    if (need_stat) {
+        stat = DirEntry_get_stat(self, follow_symlinks);
         if (!stat) {
             if (PyErr_ExceptionMatches(PyExc_OSError) && errno == ENOENT) {
                 /* If file doesn't exist (anymore), then return False
@@ -203,22 +211,34 @@ DirEntry_is_dir_file(DirEntry *self, int follow_symlinks, mode_t mode_bits)
         }
 
         mode = PyLong_AsLong(st_mode);
+        if (mode == -1 && PyErr_Occurred()) {
+            goto error;
+        }
         Py_DECREF(st_mode);
         Py_DECREF(stat);
         result = (mode & S_IFMT) == mode_bits;
     }
     else if (is_symlink) {
+        assert(mode_bits != S_IFLNK);
         result = 0;
     }
     else {
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-        unsigned long dir_bits = self->win32_lstat.st_file_attributes &
-                                 FILE_ATTRIBUTE_DIRECTORY;
-        result = (mode_bits == S_IFDIR) ? dir_bits != 0 :
-                                          dir_bits == 0;
+        assert(mode_bits == S_IFDIR || mode_bits == S_IFREG);
+#ifdef MS_WINDOWS
+        dir_bits = self->win32_lstat.st_file_attributes & FILE_ATTRIBUTE_DIRECTORY;
+        if (mode_bits == S_IFDIR) {
+            result = dir_bits != 0;
+        }
+        else {
+            result = dir_bits == 0;
+        }
 #else
-        result = (mode_bits == S_IFDIR) ? self->d_type == DT_DIR :
-                                          self->d_type == DT_REG;
+        if (mode_bits == S_IFDIR) {
+            result = self->d_type == DT_DIR;
+        }
+        else {
+            result = self->d_type == DT_REG;
+        }
 #endif
     }
 
@@ -236,12 +256,12 @@ DirEntry_is_dir(DirEntry *self, PyObject *args, PyObject *kwargs)
     int follow_symlinks = 1;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_dir",
-                                     _follow_symlinks_keywords,
+                                     follow_symlinks_keywords,
                                      &follow_symlinks)) {
         return NULL;
     }
 
-    return DirEntry_is_dir_file(self, follow_symlinks, (mode_t)S_IFDIR);
+    return DirEntry_test_mode(self, follow_symlinks, S_IFDIR);
 }
 
 static PyObject *
@@ -250,34 +270,34 @@ DirEntry_is_file(DirEntry *self, PyObject *args, PyObject *kwargs)
     int follow_symlinks = 1;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_file",
-                                     _follow_symlinks_keywords,
+                                     follow_symlinks_keywords,
                                      &follow_symlinks)) {
         return NULL;
     }
 
-    return DirEntry_is_dir_file(self, follow_symlinks, (mode_t)S_IFREG);
+    return DirEntry_test_mode(self, follow_symlinks, S_IFREG);
 }
 
 static PyMemberDef DirEntry_members[] = {
     {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
-     "this entry's filename, relative to scandir()'s \"path\" argument"},
+     "the entry's base filename, relative to scandir() \"path\" argument"},
     {"path", T_OBJECT_EX, offsetof(DirEntry, path), READONLY,
-     "this entry's full path name, equivalent of os.path.join(scandir_path, entry.name)"},
+     "the entry's full path name; equivalent to os.path.join(scandir_path, entry.name)"},
     {NULL}
 };
 
 static PyMethodDef DirEntry_methods[] = {
     {"is_dir", (PyCFunction)DirEntry_is_dir, METH_VARARGS | METH_KEYWORDS,
-     "return True if this entry is a directory; cached per entry"
+     "return True if the entry is a directory; cached per entry"
     },
     {"is_file", (PyCFunction)DirEntry_is_file, METH_VARARGS | METH_KEYWORDS,
-     "return True if this entry is a file; cached per entry"
+     "return True if the entry is a file; cached per entry"
     },
     {"is_symlink", (PyCFunction)DirEntry_is_symlink, METH_NOARGS,
-     "return True if this entry is a symbolic link; cached per entry"
+     "return True if the entry is a symbolic link; cached per entry"
     },
     {"stat", (PyCFunction)DirEntry_stat, METH_VARARGS | METH_KEYWORDS,
-     "return stat_result object for this entry; cached per entry"
+     "return stat_result object for the entry; cached per entry"
     },
     {NULL}
 };
@@ -315,12 +335,12 @@ PyTypeObject DirEntryType = {
     DirEntry_members,                       /* tp_members */
 };
 
-/* TODO ben: can posix_listdir() reuse this? */
 static char *
-_join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
+join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 {
     Py_ssize_t path_len;
     char *result;
+    char ch;
 
     if (!path_narrow) { /* Default arg: "." */
         path_narrow = ".";
@@ -329,34 +349,33 @@ _join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
     else {
         path_len = strlen(path_narrow);
     }
-    path_len = strlen(path_narrow);
 
     if (filename_len == -1) {
         filename_len = strlen(filename);
     }
 
-    /* The +2 is for the path separator and the NUL */
-    result = PyMem_Malloc(path_len + filename_len + 2);
+    /* The +1's are for the path separator and the NUL */
+    result = PyMem_Malloc(path_len + 1 + filename_len + 1);
     if (!result) {
         PyErr_NoMemory();
         return NULL;
     }
     strcpy(result, path_narrow);
-    if (path_len > 0) {
-        char ch = result[path_len - 1];
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-        if (ch != '\\' && ch != '/' && ch != ':')
-            result[path_len++] = '\\';
-#else
-        if (ch != '/')
-            result[path_len++] = '/';
-#endif
-        strcpy(result + path_len, filename);
+    ch = result[path_len - 1];
+#ifdef MS_WINDOWS
+    if (ch != '\\' && ch != '/' && ch != ':') {
+        result[path_len++] = '\\';
     }
+#else
+    if (ch != '/') {
+        result[path_len++] = '/';
+    }
+#endif
+    strcpy(result + path_len, filename);
     return result;
 }
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#ifdef MS_WINDOWS
 
 static void
 find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
@@ -385,12 +404,12 @@ find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
     result->st_file_attributes = data->dwFileAttributes;
 }
 
-/* TODO ben: can posix_listdir() reuse this? */
 static wchar_t *
-_join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
+join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 {
     Py_ssize_t path_len;
     wchar_t *result;
+    wchar_t ch;
 
     if (!path_wide) { /* Default arg: "." */
         path_wide = L".";
@@ -399,24 +418,24 @@ _join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
     else {
         path_len = wcslen(path_wide);
     }
-    /* The +2 is for the path separator and the NUL */
-    result = PyMem_Malloc((path_len + wcslen(filename) + 2) * sizeof(wchar_t));
+
+    /* The +1's are for the path separator and the NUL */
+    result = PyMem_Malloc((path_len + 1 + wcslen(filename) + 1) * sizeof(wchar_t));
     if (!result) {
         PyErr_NoMemory();
         return NULL;
     }
     wcscpy(result, path_wide);
-    if (path_len > 0) {
-        wchar_t ch = result[path_len - 1];
-        if (ch != SEP && ch != ALTSEP && ch != L':')
-            result[path_len++] = SEP;
-        wcscpy(result + path_len, filename);
+    ch = result[path_len - 1];
+    if (ch != SEP && ch != ALTSEP && ch != L':') {
+        result[path_len++] = SEP;
     }
+    wcscpy(result + path_len, filename);
     return result;
 }
 
 static PyObject *
-make_DirEntry(path_t *path, void *data)
+DirEntry_new(path_t *path, void *data)
 {
     DirEntry *entry;
 
@@ -438,7 +457,7 @@ make_DirEntry(path_t *path, void *data)
             goto error;
         }
 
-        path_strW = _join_path_filenameW(path->wide, dataW->cFileName);
+        path_strW = join_path_filenameW(path->wide, dataW->cFileName);
         if (!path_strW) {
             goto error;
         }
@@ -457,7 +476,7 @@ make_DirEntry(path_t *path, void *data)
             goto error;
         }
 
-        path_strA = _join_path_filenameA(path->narrow, dataA->cFileName, -1);
+        path_strA = join_path_filenameA(path->narrow, dataA->cFileName, -1);
         if (!path_strA) {
             goto error;
         }
@@ -476,10 +495,10 @@ error:
     return NULL;
 }
 
-#else  /* POSIX || HAVE_OPENDIR */
+#else  /* POSIX */
 
 static PyObject *
-make_DirEntry(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
+DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
 {
     DirEntry *entry;
     char *joined_path;
@@ -493,7 +512,7 @@ make_DirEntry(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_typ
     entry->stat = NULL;
     entry->lstat = NULL;
 
-    joined_path = _join_path_filenameA(path->narrow, name, name_len);
+    joined_path = join_path_filenameA(path->narrow, name, name_len);
     if (!joined_path) {
         goto error;
     }
@@ -524,8 +543,8 @@ error:
 typedef struct {
     PyObject_HEAD
     path_t path;
-    int yield_name;
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+    int yield_name;  /* for when listdir() is implemented using scandir() */
+#ifdef MS_WINDOWS
     HANDLE handle;
 #else
     DIR *dirp;
@@ -540,7 +559,7 @@ ScandirIterator_dealloc(ScandirIterator *iterator)
     Py_TYPE(iterator)->tp_free((PyObject *)iterator);
 }
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#ifdef MS_WINDOWS
 
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
@@ -558,7 +577,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             if (is_unicode) {
                 wchar_t *path_strW;
 
-                path_strW = _join_path_filenameW(iterator->path.wide, L"*.*");
+                path_strW = join_path_filenameW(iterator->path.wide, L"*.*");
                 if (!path_strW) {
                     return NULL;
                 }
@@ -572,7 +591,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             else {
                 char *path_strA;
 
-                path_strA = _join_path_filenameA(iterator->path.narrow, "*.*", -1);
+                path_strA = join_path_filenameA(iterator->path.narrow, "*.*", -1);
                 if (!path_strA) {
                     return NULL;
                 }
@@ -627,7 +646,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
                     return PyUnicode_FromWideChar(FileData.W.cFileName, wcslen(FileData.W.cFileName));
                 }
                 else {
-                    return make_DirEntry(&iterator->path, &FileData.W);
+                    return DirEntry_new(&iterator->path, &FileData.W);
                 }
             }
         }
@@ -638,7 +657,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
                     return PyBytes_FromString(FileData.A.cFileName);
                 }
                 else {
-                    return make_DirEntry(&iterator->path, &FileData.A);
+                    return DirEntry_new(&iterator->path, &FileData.A);
                 }
             }
         }
@@ -647,7 +666,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     }
 }
 
-#else  /* POSIX || HAVE_OPENDIR */
+#else  /* POSIX */
 
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
@@ -700,8 +719,8 @@ ScandirIterator_iternext(ScandirIterator *iterator)
                  (name_len == 1 || (direntp->d_name[1] == '.' && name_len == 2));
         if (!is_dot) {
             if (!iterator->yield_name) {
-                return make_DirEntry(&iterator->path, direntp->d_name, name_len,
-                                     direntp->d_type);
+                return DirEntry_new(&iterator->path, direntp->d_name, name_len,
+                                    direntp->d_type);
             }
             if (!iterator->path.narrow || !PyBytes_Check(iterator->path.object)) {
                 return PyUnicode_DecodeFSDefaultAndSize(direntp->d_name, name_len);
@@ -763,7 +782,7 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     iterator->path.function_name = "scandir";
     iterator->path.nullable = 1;
 
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#ifdef MS_WINDOWS
     iterator->handle = INVALID_HANDLE_VALUE;
 #else
     iterator->dirp = NULL;

@@ -400,33 +400,6 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 
 #ifdef MS_WINDOWS
 
-static void
-find_data_to_stat(WIN32_FIND_DATAW *data, struct win32_stat *result)
-{
-    /* Note: data argument can point to a WIN32_FIND_DATAW or a
-       WIN32_FIND_DATAA struct, as the first members are in the same
-       position, and cFileName is not used here
-    */
-    memset(result, 0, sizeof(*result));
-
-    result->st_mode = attributes_to_mode(data->dwFileAttributes);
-    if ((data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
-            (data->dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
-        /* first clear the S_IFMT bits */
-        result->st_mode ^= (result->st_mode & S_IFMT);
-        /* now set the bits that make this a symlink */
-        result->st_mode |= S_IFLNK;
-    }
-
-    result->st_size = (((__int64)data->nFileSizeHigh)<<32) + data->nFileSizeLow;
-
-    FILE_TIME_to_time_t_nsec(&data->ftCreationTime, &result->st_ctime, &result->st_ctime_nsec);
-    FILE_TIME_to_time_t_nsec(&data->ftLastWriteTime, &result->st_mtime, &result->st_mtime_nsec);
-    FILE_TIME_to_time_t_nsec(&data->ftLastAccessTime, &result->st_atime, &result->st_atime_nsec);
-
-    result->st_file_attributes = data->dwFileAttributes;
-}
-
 static wchar_t *
 join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 {
@@ -461,6 +434,8 @@ static PyObject *
 DirEntry_new(path_t *path, void *data)
 {
     DirEntry *entry;
+    BY_HANDLE_FILE_INFORMATION file_info;
+    ULONG reparse_tag;
 
     entry = PyObject_New(DirEntry, &DirEntryType);
     if (!entry) {
@@ -510,7 +485,8 @@ DirEntry_new(path_t *path, void *data)
             goto error;
         }
     }
-    find_data_to_stat((WIN32_FIND_DATAW *)data, &entry->win32_lstat);
+    find_data_to_file_info_w((WIN32_FIND_DATAW *)data, &file_info, &reparse_tag);
+    attribute_data_to_stat(&file_info, reparse_tag, &entry->win32_lstat);
 
     return (PyObject *)entry;
 

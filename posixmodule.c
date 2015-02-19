@@ -1521,7 +1521,7 @@ attributes_to_mode(DWORD attr)
     return m;
 }
 
-static int
+static void
 attribute_data_to_stat(BY_HANDLE_FILE_INFORMATION *info, ULONG reparse_tag, struct win32_stat *result)
 {
     memset(result, 0, sizeof(*result));
@@ -1541,8 +1541,6 @@ attribute_data_to_stat(BY_HANDLE_FILE_INFORMATION *info, ULONG reparse_tag, stru
         result->st_mode |= S_IFLNK;
     }
     result->st_file_attributes = info->dwFileAttributes;
-
-    return 0;
 }
 
 static BOOL
@@ -1568,6 +1566,25 @@ attributes_from_dir(LPCSTR pszFile, BY_HANDLE_FILE_INFORMATION *info, ULONG *rep
     return TRUE;
 }
 
+static void
+find_data_to_file_info_w(WIN32_FIND_DATAW *pFileData,
+                         BY_HANDLE_FILE_INFORMATION *info,
+                         ULONG *reparse_tag)
+{
+    memset(info, 0, sizeof(*info));
+    info->dwFileAttributes = pFileData->dwFileAttributes;
+    info->ftCreationTime   = pFileData->ftCreationTime;
+    info->ftLastAccessTime = pFileData->ftLastAccessTime;
+    info->ftLastWriteTime  = pFileData->ftLastWriteTime;
+    info->nFileSizeHigh    = pFileData->nFileSizeHigh;
+    info->nFileSizeLow     = pFileData->nFileSizeLow;
+/*  info->nNumberOfLinks   = 1; */
+    if (pFileData->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        *reparse_tag = pFileData->dwReserved0;
+    else
+        *reparse_tag = 0;
+}
+
 static BOOL
 attributes_from_dir_w(LPCWSTR pszFile, BY_HANDLE_FILE_INFORMATION *info, ULONG *reparse_tag)
 {
@@ -1577,17 +1594,7 @@ attributes_from_dir_w(LPCWSTR pszFile, BY_HANDLE_FILE_INFORMATION *info, ULONG *
     if (hFindFile == INVALID_HANDLE_VALUE)
         return FALSE;
     FindClose(hFindFile);
-    memset(info, 0, sizeof(*info));
-    *reparse_tag = 0;
-    info->dwFileAttributes = FileData.dwFileAttributes;
-    info->ftCreationTime   = FileData.ftCreationTime;
-    info->ftLastAccessTime = FileData.ftLastAccessTime;
-    info->ftLastWriteTime  = FileData.ftLastWriteTime;
-    info->nFileSizeHigh    = FileData.nFileSizeHigh;
-    info->nFileSizeLow     = FileData.nFileSizeLow;
-/*  info->nNumberOfLinks   = 1; */
-    if (FileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
-        *reparse_tag = FileData.dwReserved0;
+    find_data_to_file_info_w(&FileData, info, reparse_tag);
     return TRUE;
 }
 

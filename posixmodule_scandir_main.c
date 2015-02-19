@@ -15,6 +15,14 @@ Ben's notes:
   - move #ifdef inside C functions when it was revelant
   - new tests
   - call closedir() before raising StopIteration
+  - consider calling opendir() directly in scandir()
+  - drop support for bytes paths on Windows
+  - add tests to check that invalid types are rejected, and
+    a test to ensure that os.stat() parameter is a keyword-only
+    parameter
+  - any fixes from Serhiy's code review of scandir-6.patch:
+    http://bugs.python.org/review/22524/#ps13923
+  - documentation
 */
 
 #include "structmember.h"
@@ -34,7 +42,7 @@ typedef struct {
     struct win32_stat win32_lstat;
     __int64 win32_file_index;
     int got_file_index;
-#else
+#else /* POSIX */
     unsigned char d_type;
     ino_t d_ino;
 #endif
@@ -50,67 +58,26 @@ DirEntry_dealloc(DirEntry *entry)
     Py_TYPE(entry)->tp_free((PyObject *)entry);
 }
 
-#ifdef MS_WINDOWS
-
-static PyObject *
-DirEntry_is_symlink(DirEntry *self)
-{
-    return PyBool_FromLong((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK);
-}
-
-static PyObject *
-DirEntry_get_lstat(DirEntry *self)
-{
-    if (!self->lstat) {
-        self->lstat = _pystat_fromstructstat(&self->win32_lstat);
-    }
-    Py_XINCREF(self->lstat);
-    return self->lstat;
-}
-
-static PyObject *
-DirEntry_get_stat(DirEntry *self, int follow_symlinks)
-{
-    if (follow_symlinks) {
-        if (!self->stat) {
-            if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
-                path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
-
-                if (!path_converter(self->path, &path)) {
-                    return NULL;
-                }
-                self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
-                path_cleanup(&path);
-            }
-            else {
-                self->stat = DirEntry_get_lstat(self);
-            }
-        }
-        Py_XINCREF(self->stat);
-        return self->stat;
-    }
-    else {
-        return DirEntry_get_lstat(self);
-    }
-}
-
-#else  /* POSIX */
-
-/* Forward reference */
+/* Forward reference to make it easier to implement DirEntry_is_symlink etc */
 static PyObject *
 DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
 {
+#ifdef MS_WINDOWS
+    return PyBool_FromLong((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK);
+#else /* POSIX */
     if (self->d_type != DT_UNKNOWN) {
         return PyBool_FromLong(self->d_type == DT_LNK);
     }
     else {
         return DirEntry_test_mode(self, 0, S_IFLNK);
     }
+#endif
 }
 
+#ifndef MS_WINDOWS /* POSIX */
 static PyObject *
 DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 {
@@ -124,12 +91,17 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     path_cleanup(&path);
     return result;
 }
+#endif
 
 static PyObject *
 DirEntry_get_lstat(DirEntry *self)
 {
     if (!self->lstat) {
+#ifdef MS_WINDOWS
+        self->lstat = _pystat_fromstructstat(&self->win32_lstat);
+#else /* POSIX */
         self->lstat = DirEntry_fetch_stat(self, 0);
+#endif
     }
     Py_XINCREF(self->lstat);
     return self->lstat;
@@ -140,6 +112,20 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
 {
     if (follow_symlinks) {
         if (!self->stat) {
+#ifdef MS_WINDOWS
+            if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
+                path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
+
+                if (!path_converter(self->path, &path)) {
+                    return NULL;
+                }
+                self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
+                path_cleanup(&path);
+            }
+            else {
+                self->stat = DirEntry_get_lstat(self);
+            }
+#else /* POSIX */
             int is_symlink;
             PyObject *po_is_symlink = DirEntry_is_symlink(self);
             if (!po_is_symlink) {
@@ -154,6 +140,7 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
             else {
                 self->stat = DirEntry_get_lstat(self);
             }
+#endif
         }
         Py_XINCREF(self->stat);
         return self->stat;
@@ -162,8 +149,6 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
         return DirEntry_get_lstat(self);
     }
 }
-
-#endif
 
 static PyObject *
 DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
@@ -193,7 +178,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
 #ifdef MS_WINDOWS
     is_symlink = (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;
     need_stat = follow_symlinks && is_symlink;
-#else
+#else /* POSIX */
     is_symlink = self->d_type == DT_LNK;
     need_stat = self->d_type == DT_UNKNOWN || (follow_symlinks && is_symlink);
 #endif
@@ -235,7 +220,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
         else {
             result = dir_bits == 0;
         }
-#else
+#else /* POSIX */
         if (mode_bits == S_IFDIR) {
             result = self->d_type == DT_DIR;
         }
@@ -303,7 +288,7 @@ DirEntry_inode(DirEntry *self)
         self->got_file_index = 1;
     }
     return PyLong_FromLongLong((PY_LONG_LONG)self->win32_file_index);
-#else // POSIX
+#else /* POSIX */
 #ifdef HAVE_LARGEFILE_SUPPORT
     return PyLong_FromLongLong((PY_LONG_LONG)self->d_ino);
 #else
@@ -403,7 +388,7 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
     if (ch != '\\' && ch != '/' && ch != ':') {
         result[path_len++] = '\\';
     }
-#else
+#else /* POSIX */
     if (ch != '/') {
         result[path_len++] = '/';
     }
@@ -533,7 +518,7 @@ error:
     return NULL;
 }
 
-#else  /* POSIX */
+#else /* POSIX */
 
 static PyObject *
 DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
@@ -583,7 +568,7 @@ typedef struct {
     path_t path;
 #ifdef MS_WINDOWS
     HANDLE handle;
-#else
+#else /* POSIX */
     DIR *dirp;
 #endif
 } ScandirIterator;
@@ -693,7 +678,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     }
 }
 
-#else  /* POSIX */
+#else /* POSIX */
 
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
@@ -748,7 +733,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             unsigned char d_type;
 
 #if defined(__GLIBC__) && !defined(_DIRENT_HAVE_D_TYPE)
-            d_type = DT_UNKNOWN;
+            d_type = DT_UNKNOWN;  /* System doesn't support d_type */
 #else
             d_type = direntp->d_type;
 #endif
@@ -808,7 +793,7 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
 
 #ifdef MS_WINDOWS
     iterator->handle = INVALID_HANDLE_VALUE;
-#else
+#else /* POSIX */
     iterator->dirp = NULL;
 #endif
 

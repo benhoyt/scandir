@@ -12,7 +12,6 @@ Ben's notes:
   - "po" is not used
 
 * haypo's suggestions:
-  - move #ifdef inside C functions when it was revelant
   - new tests
   - call closedir() before raising StopIteration
   - consider calling opendir/FindFirstFileW directly in scandir()

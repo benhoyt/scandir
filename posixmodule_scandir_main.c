@@ -32,8 +32,11 @@ typedef struct {
     PyObject *lstat;
 #ifdef MS_WINDOWS
     struct win32_stat win32_lstat;
+    __int64 win32_file_index;
+    int got_file_index;
 #else
     unsigned char d_type;
+    ino_t d_ino;
 #endif
 } DirEntry;
 
@@ -278,6 +281,37 @@ DirEntry_is_file(DirEntry *self, PyObject *args, PyObject *kwargs)
     return DirEntry_test_mode(self, follow_symlinks, S_IFREG);
 }
 
+static PyObject *
+DirEntry_inode(DirEntry *self)
+{
+#ifdef MS_WINDOWS
+    if (!self->got_file_index) {
+        path_t path = PATH_T_INITIALIZE("DirEntry.inode", NULL, 0, 0);
+        struct win32_stat stat;
+
+        if (!path_converter(self->path, &path)) {
+            return NULL;
+        }
+
+        if (win32_lstat_w(path.wide, &stat) != 0) {
+            path_error(&path);
+            path_cleanup(&path);
+            return NULL;
+        }
+        path_cleanup(&path);
+        self->win32_file_index = stat.st_ino;
+        self->got_file_index = 1;
+    }
+    return PyLong_FromLongLong((PY_LONG_LONG)self->win32_file_index);
+#else // POSIX
+#ifdef HAVE_LARGEFILE_SUPPORT
+    return PyLong_FromLongLong((PY_LONG_LONG)self->d_ino);
+#else
+    return PyLong_FromLong((long)self->d_ino);
+#endif
+#endif
+}
+
 static PyMemberDef DirEntry_members[] = {
     {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
      "the entry's base filename, relative to scandir() \"path\" argument"},
@@ -298,6 +332,9 @@ static PyMethodDef DirEntry_methods[] = {
     },
     {"stat", (PyCFunction)DirEntry_stat, METH_VARARGS | METH_KEYWORDS,
      "return stat_result object for the entry; cached per entry"
+    },
+    {"inode", (PyCFunction)DirEntry_inode, METH_NOARGS,
+     "return inode of the entry; cached per entry",
     },
     {NULL}
 };
@@ -447,6 +484,7 @@ DirEntry_new(path_t *path, void *data)
     entry->path = NULL;
     entry->stat = NULL;
     entry->lstat = NULL;
+    entry->got_file_index = 0;
 
     if (!path->narrow) {
         WIN32_FIND_DATAW *dataW = (WIN32_FIND_DATAW *)data;

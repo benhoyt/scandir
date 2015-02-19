@@ -745,8 +745,14 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         is_dot = direntp->d_name[0] == '.' &&
                  (name_len == 1 || (direntp->d_name[1] == '.' && name_len == 2));
         if (!is_dot) {
-            return DirEntry_new(&iterator->path, direntp->d_name, name_len,
-                                direntp->d_type);
+            unsigned char d_type;
+
+#if defined(__GLIBC__) && !defined(_DIRENT_HAVE_D_TYPE)
+            d_type = DT_UNKNOWN;
+#else
+            d_type = direntp->d_type;
+#endif
+            return DirEntry_new(&iterator->path, direntp->d_name, name_len, d_type);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */

@@ -581,7 +581,6 @@ error:
 typedef struct {
     PyObject_HEAD
     path_t path;
-    int yield_name;  /* for when listdir() is implemented using scandir() */
 #ifdef MS_WINDOWS
     HANDLE handle;
 #else
@@ -680,23 +679,13 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         if (is_unicode) {
             if (wcscmp(FileData.W.cFileName, L".") != 0 &&
                     wcscmp(FileData.W.cFileName, L"..") != 0) {
-                if (iterator->yield_name) {
-                    return PyUnicode_FromWideChar(FileData.W.cFileName, wcslen(FileData.W.cFileName));
-                }
-                else {
-                    return DirEntry_new(&iterator->path, &FileData.W);
-                }
+                return DirEntry_new(&iterator->path, &FileData.W);
             }
         }
         else {
             if (strcmp(FileData.A.cFileName, ".") != 0 &&
                     strcmp(FileData.A.cFileName, "..") != 0) {
-                if (iterator->yield_name) {
-                    return PyBytes_FromString(FileData.A.cFileName);
-                }
-                else {
-                    return DirEntry_new(&iterator->path, &FileData.A);
-                }
+                return DirEntry_new(&iterator->path, &FileData.A);
             }
         }
 
@@ -756,16 +745,8 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         is_dot = direntp->d_name[0] == '.' &&
                  (name_len == 1 || (direntp->d_name[1] == '.' && name_len == 2));
         if (!is_dot) {
-            if (!iterator->yield_name) {
-                return DirEntry_new(&iterator->path, direntp->d_name, name_len,
-                                    direntp->d_type);
-            }
-            if (!iterator->path.narrow || !PyBytes_Check(iterator->path.object)) {
-                return PyUnicode_DecodeFSDefaultAndSize(direntp->d_name, name_len);
-            }
-            else {
-                return PyBytes_FromStringAndSize(direntp->d_name, name_len);
-            }
+            return DirEntry_new(&iterator->path, direntp->d_name, name_len,
+                                direntp->d_type);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */
@@ -815,7 +796,6 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     if (!iterator) {
         return NULL;
     }
-    iterator->yield_name = 0;
     memset(&iterator->path, 0, sizeof(path_t));
     iterator->path.function_name = "scandir";
     iterator->path.nullable = 1;
@@ -839,48 +819,4 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_XINCREF(iterator->path.object);
 
     return (PyObject *)iterator;
-}
-
-/* TODO ben: version of listdir() implemented using ScandirIterator;
-   note that this doesn't yet support specifying a file descriptor */
-static PyObject *
-posix_listdir2(PyObject *self, PyObject *args, PyObject *kwargs)
-{
-    ScandirIterator *iterator = NULL;
-    PyObject *list = NULL;
-
-    iterator = (ScandirIterator *)posix_scandir(self, args, kwargs);
-    if (!iterator) {
-        goto error;
-    }
-    iterator->yield_name = 1;
-
-    list = PyList_New(0);
-    if (!list) {
-        goto error;
-    }
-
-    while (1) {
-        PyObject *name = ScandirIterator_iternext(iterator);
-        if (!name) {
-            if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
-                PyErr_Clear();
-                break;
-            }
-            else {
-                goto error;
-            }
-        }
-        if (PyList_Append(list, name) != 0) {
-            goto error;
-        }
-    }
-
-    Py_DECREF(iterator);
-    return list;
-
-error:
-    Py_XDECREF(list);
-    Py_XDECREF(iterator);
-    return NULL;
 }

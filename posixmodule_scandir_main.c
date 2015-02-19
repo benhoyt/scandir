@@ -15,7 +15,7 @@ Ben's notes:
   - move #ifdef inside C functions when it was revelant
   - new tests
   - call closedir() before raising StopIteration
-  - consider calling opendir() directly in scandir()
+  - consider calling opendir/FindFirstFileW directly in scandir()
   - add tests to check that invalid types are rejected, and
     a test to ensure that os.stat() parameter is a keyword-only
     parameter
@@ -46,6 +46,16 @@ typedef struct {
     ino_t d_ino;
 #endif
 } DirEntry;
+
+typedef struct {
+    PyObject_HEAD
+    path_t path;
+#ifdef MS_WINDOWS
+    HANDLE handle;
+#else /* POSIX */
+    DIR *dirp;
+#endif
+} ScandirIterator;
 
 static void
 DirEntry_dealloc(DirEntry *entry)
@@ -356,46 +366,6 @@ PyTypeObject DirEntryType = {
     DirEntry_members,                       /* tp_members */
 };
 
-static char *
-join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
-{
-    Py_ssize_t path_len;
-    char *result;
-    char ch;
-
-    if (!path_narrow) { /* Default arg: "." */
-        path_narrow = ".";
-        path_len = 1;
-    }
-    else {
-        path_len = strlen(path_narrow);
-    }
-
-    if (filename_len == -1) {
-        filename_len = strlen(filename);
-    }
-
-    /* The +1's are for the path separator and the NUL */
-    result = PyMem_Malloc(path_len + 1 + filename_len + 1);
-    if (!result) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    strcpy(result, path_narrow);
-    ch = result[path_len - 1];
-#ifdef MS_WINDOWS
-    if (ch != '\\' && ch != '/' && ch != ':') {
-        result[path_len++] = '\\';
-    }
-#else /* POSIX */
-    if (ch != '/') {
-        result[path_len++] = '/';
-    }
-#endif
-    strcpy(result + path_len, filename);
-    return result;
-}
-
 #ifdef MS_WINDOWS
 
 static wchar_t *
@@ -434,7 +404,7 @@ DirEntry_new(path_t *path, WIN32_FIND_DATAW *dataW)
     DirEntry *entry;
     BY_HANDLE_FILE_INFORMATION file_info;
     ULONG reparse_tag;
-    wchar_t *path_strW;
+    wchar_t *joined_path;
 
     entry = PyObject_New(DirEntry, &DirEntryType);
     if (!entry) {
@@ -451,12 +421,12 @@ DirEntry_new(path_t *path, WIN32_FIND_DATAW *dataW)
         goto error;
     }
 
-    path_strW = join_path_filenameW(path->wide, dataW->cFileName);
-    if (!path_strW) {
+    joined_path = join_path_filenameW(path->wide, dataW->cFileName);
+    if (!joined_path) {
         goto error;
     }
-    entry->path = PyUnicode_FromWideChar(path_strW, wcslen(path_strW));
-    PyMem_Free(path_strW);
+    entry->path = PyUnicode_FromWideChar(joined_path, wcslen(joined_path));
+    PyMem_Free(joined_path);
     if (!entry->path) {
         goto error;
     }
@@ -470,71 +440,6 @@ error:
     Py_XDECREF(entry);
     return NULL;
 }
-
-#else /* POSIX */
-
-static PyObject *
-DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
-{
-    DirEntry *entry;
-    char *joined_path;
-
-    entry = PyObject_New(DirEntry, &DirEntryType);
-    if (!entry) {
-        return NULL;
-    }
-    entry->name = NULL;
-    entry->path = NULL;
-    entry->stat = NULL;
-    entry->lstat = NULL;
-
-    joined_path = join_path_filenameA(path->narrow, name, name_len);
-    if (!joined_path) {
-        goto error;
-    }
-
-    if (!path->narrow || !PyBytes_Check(path->object)) {
-        entry->name = PyUnicode_DecodeFSDefaultAndSize(name, name_len);
-        entry->path = PyUnicode_DecodeFSDefault(joined_path);
-    }
-    else {
-        entry->name = PyBytes_FromStringAndSize(name, name_len);
-        entry->path = PyBytes_FromString(joined_path);
-    }
-    PyMem_Free(joined_path);
-    if (!entry->name || !entry->path) {
-        goto error;
-    }
-
-    entry->d_type = d_type;
-
-    return (PyObject *)entry;
-
-error:
-    Py_XDECREF(entry);
-    return NULL;
-}
-#endif
-
-typedef struct {
-    PyObject_HEAD
-    path_t path;
-#ifdef MS_WINDOWS
-    HANDLE handle;
-#else /* POSIX */
-    DIR *dirp;
-#endif
-} ScandirIterator;
-
-static void
-ScandirIterator_dealloc(ScandirIterator *iterator)
-{
-    Py_XDECREF(iterator->path.object);
-    path_cleanup(&iterator->path);
-    Py_TYPE(iterator)->tp_free((PyObject *)iterator);
-}
-
-#ifdef MS_WINDOWS
 
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
@@ -603,6 +508,82 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
 #else /* POSIX */
 
+static char *
+join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
+{
+    Py_ssize_t path_len;
+    char *result;
+    char ch;
+
+    if (!path_narrow) { /* Default arg: "." */
+        path_narrow = ".";
+        path_len = 1;
+    }
+    else {
+        path_len = strlen(path_narrow);
+    }
+
+    if (filename_len == -1) {
+        filename_len = strlen(filename);
+    }
+
+    /* The +1's are for the path separator and the NUL */
+    result = PyMem_Malloc(path_len + 1 + filename_len + 1);
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    strcpy(result, path_narrow);
+    ch = result[path_len - 1];
+    if (ch != '/') {
+        result[path_len++] = '/';
+    }
+    strcpy(result + path_len, filename);
+    return result;
+}
+
+static PyObject *
+DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
+{
+    DirEntry *entry;
+    char *joined_path;
+
+    entry = PyObject_New(DirEntry, &DirEntryType);
+    if (!entry) {
+        return NULL;
+    }
+    entry->name = NULL;
+    entry->path = NULL;
+    entry->stat = NULL;
+    entry->lstat = NULL;
+
+    joined_path = join_path_filenameA(path->narrow, name, name_len);
+    if (!joined_path) {
+        goto error;
+    }
+
+    if (!path->narrow || !PyBytes_Check(path->object)) {
+        entry->name = PyUnicode_DecodeFSDefaultAndSize(name, name_len);
+        entry->path = PyUnicode_DecodeFSDefault(joined_path);
+    }
+    else {
+        entry->name = PyBytes_FromStringAndSize(name, name_len);
+        entry->path = PyBytes_FromString(joined_path);
+    }
+    PyMem_Free(joined_path);
+    if (!entry->name || !entry->path) {
+        goto error;
+    }
+
+    entry->d_type = d_type;
+
+    return (PyObject *)entry;
+
+error:
+    Py_XDECREF(entry);
+    return NULL;
+}
+
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
 {
@@ -669,6 +650,14 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
 #endif
 
+static void
+ScandirIterator_dealloc(ScandirIterator *iterator)
+{
+    Py_XDECREF(iterator->path.object);
+    path_cleanup(&iterator->path);
+    Py_TYPE(iterator)->tp_free((PyObject *)iterator);
+}
+
 PyTypeObject ScandirIteratorType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     MODNAME ".ScandirIterator",             /* tp_name */
@@ -729,7 +718,7 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
 #ifdef MS_WINDOWS
     if (iterator->path.narrow) {
         PyErr_SetString(PyExc_TypeError,
-                        "os.scandir() doesn't support bytes paths on Windows, use Unicode instead");
+                        "os.scandir() doesn't support bytes path on Windows, use Unicode instead");
         Py_DECREF(iterator);
         return NULL;
     }

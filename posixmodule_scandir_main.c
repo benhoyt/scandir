@@ -13,6 +13,7 @@ Ben's notes:
 
 * haypo's suggestions:
   - move #ifdef inside C functions when it was revelant
+  - refactor find_data_to_stat to use existing posixmodule.c functions
   - new tests
   - call closedir() before raising StopIteration
   - consider calling opendir() directly in scandir()
@@ -326,7 +327,7 @@ static PyMethodDef DirEntry_methods[] = {
 
 PyTypeObject DirEntryType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    MODNAME "DirEntry",                     /* tp_name */
+    MODNAME ".DirEntry",                    /* tp_name */
     sizeof(DirEntry),                       /* tp_basicsize */
     0,                                      /* tp_itemsize */
     /* methods */
@@ -748,7 +749,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
 PyTypeObject ScandirIteratorType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    MODNAME "ScandirIterator",              /* tp_name */
+    MODNAME ".ScandirIterator",             /* tp_name */
     sizeof(ScandirIterator),                /* tp_basicsize */
     0,                                      /* tp_itemsize */
     /* methods */

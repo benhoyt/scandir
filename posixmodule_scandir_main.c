@@ -11,10 +11,10 @@ Ben's notes:
   - initial Py_ARRAY_LENGTH(namebuf)-4 value of "len" is not used
   - "po" is not used
 
-* haypo's feedback:
-  - he'd prefer if DirEntry.path was a read-only property (store scandir_path
-    and join to name on demand)
-  - 
+* haypo's suggestions:
+  - move #ifdef inside C functions when it was revelant
+  - new tests
+  - call closedir() before raising StopIteration
 */
 
 #include "structmember.h"
@@ -341,7 +341,7 @@ static PyMethodDef DirEntry_methods[] = {
 
 PyTypeObject DirEntryType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "DirEntry",                             /* tp_name */
+    MODNAME "DirEntry",                     /* tp_name */
     sizeof(DirEntry),                       /* tp_basicsize */
     0,                                      /* tp_itemsize */
     /* methods */
@@ -763,7 +763,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
 PyTypeObject ScandirIteratorType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "ScandirIterator",                      /* tp_name */
+    MODNAME "ScandirIterator",              /* tp_name */
     sizeof(ScandirIterator),                /* tp_basicsize */
     0,                                      /* tp_itemsize */
     /* methods */

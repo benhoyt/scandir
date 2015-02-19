@@ -13,11 +13,9 @@ Ben's notes:
 
 * haypo's suggestions:
   - move #ifdef inside C functions when it was revelant
-  - refactor find_data_to_stat to use existing posixmodule.c functions
   - new tests
   - call closedir() before raising StopIteration
   - consider calling opendir() directly in scandir()
-  - drop support for bytes paths on Windows
   - add tests to check that invalid types are rejected, and
     a test to ensure that os.stat() parameter is a keyword-only
     parameter
@@ -431,11 +429,12 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 }
 
 static PyObject *
-DirEntry_new(path_t *path, void *data)
+DirEntry_new(path_t *path, WIN32_FIND_DATAW *dataW)
 {
     DirEntry *entry;
     BY_HANDLE_FILE_INFORMATION file_info;
     ULONG reparse_tag;
+    wchar_t *path_strW;
 
     entry = PyObject_New(DirEntry, &DirEntryType);
     if (!entry) {
@@ -447,45 +446,22 @@ DirEntry_new(path_t *path, void *data)
     entry->lstat = NULL;
     entry->got_file_index = 0;
 
-    if (!path->narrow) {
-        WIN32_FIND_DATAW *dataW = (WIN32_FIND_DATAW *)data;
-        wchar_t *path_strW;
-
-        entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
-        if (!entry->name) {
-            goto error;
-        }
-
-        path_strW = join_path_filenameW(path->wide, dataW->cFileName);
-        if (!path_strW) {
-            goto error;
-        }
-        entry->path = PyUnicode_FromWideChar(path_strW, wcslen(path_strW));
-        PyMem_Free(path_strW);
-        if (!entry->path) {
-            goto error;
-        }
+    entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
+    if (!entry->name) {
+        goto error;
     }
-    else {
-        WIN32_FIND_DATAA *dataA = (WIN32_FIND_DATAA *)data;
-        char *path_strA;
 
-        entry->name = PyBytes_FromString(dataA->cFileName);
-        if (!entry->name) {
-            goto error;
-        }
-
-        path_strA = join_path_filenameA(path->narrow, dataA->cFileName, -1);
-        if (!path_strA) {
-            goto error;
-        }
-        entry->path = PyBytes_FromString(path_strA);
-        PyMem_Free(path_strA);
-        if (!entry->path) {
-            goto error;
-        }
+    path_strW = join_path_filenameW(path->wide, dataW->cFileName);
+    if (!path_strW) {
+        goto error;
     }
-    find_data_to_file_info_w((WIN32_FIND_DATAW *)data, &file_info, &reparse_tag);
+    entry->path = PyUnicode_FromWideChar(path_strW, wcslen(path_strW));
+    PyMem_Free(path_strW);
+    if (!entry->path) {
+        goto error;
+    }
+
+    find_data_to_file_info_w(dataW, &file_info, &reparse_tag);
     attribute_data_to_stat(&file_info, reparse_tag, &entry->win32_lstat);
 
     return (PyObject *)entry;
@@ -563,44 +539,23 @@ ScandirIterator_dealloc(ScandirIterator *iterator)
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
 {
-    union {  /* We only use one at a time, so save space */
-        WIN32_FIND_DATAW W;
-        WIN32_FIND_DATAA A;
-    } FileData;
-
-    int is_unicode = !iterator->path.narrow;
+    WIN32_FIND_DATAW file_data;
 
     while (1) {
         if (iterator->handle == INVALID_HANDLE_VALUE) {
             /* First time around, prepare path and call FindFirstFile */
-            if (is_unicode) {
-                wchar_t *path_strW;
+            wchar_t *path_strW;
 
-                path_strW = join_path_filenameW(iterator->path.wide, L"*.*");
-                if (!path_strW) {
-                    return NULL;
-                }
-
-                Py_BEGIN_ALLOW_THREADS
-                iterator->handle = FindFirstFileW(path_strW, &FileData.W);
-                Py_END_ALLOW_THREADS
-
-                PyMem_Free(path_strW);  /* We're done with path_strW now */
+            path_strW = join_path_filenameW(iterator->path.wide, L"*.*");
+            if (!path_strW) {
+                return NULL;
             }
-            else {
-                char *path_strA;
 
-                path_strA = join_path_filenameA(iterator->path.narrow, "*.*", -1);
-                if (!path_strA) {
-                    return NULL;
-                }
+            Py_BEGIN_ALLOW_THREADS
+            iterator->handle = FindFirstFileW(path_strW, &file_data);
+            Py_END_ALLOW_THREADS
 
-                Py_BEGIN_ALLOW_THREADS
-                iterator->handle = FindFirstFileA(path_strA, &FileData.A);
-                Py_END_ALLOW_THREADS
-
-                PyMem_Free(path_strA);  /* We're done with path_strA now */
-            }
+            PyMem_Free(path_strW);  /* We're done with path_strW now */
 
             if (iterator->handle == INVALID_HANDLE_VALUE) {
                 if (GetLastError() != ERROR_FILE_NOT_FOUND) {
@@ -615,8 +570,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             BOOL success;
 
             Py_BEGIN_ALLOW_THREADS
-            success = is_unicode ? FindNextFileW(iterator->handle, &FileData.W) :
-                                   FindNextFileA(iterator->handle, &FileData.A);
+            success = FindNextFileW(iterator->handle, &file_data);
             Py_END_ALLOW_THREADS
 
             if (!success) {
@@ -638,17 +592,9 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         }
 
         /* Skip over . and .. */
-        if (is_unicode) {
-            if (wcscmp(FileData.W.cFileName, L".") != 0 &&
-                    wcscmp(FileData.W.cFileName, L"..") != 0) {
-                return DirEntry_new(&iterator->path, &FileData.W);
-            }
-        }
-        else {
-            if (strcmp(FileData.A.cFileName, ".") != 0 &&
-                    strcmp(FileData.A.cFileName, "..") != 0) {
-                return DirEntry_new(&iterator->path, &FileData.A);
-            }
+        if (wcscmp(file_data.cFileName, L".") != 0 &&
+                wcscmp(file_data.cFileName, L"..") != 0) {
+            return DirEntry_new(&iterator->path, &file_data);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */
@@ -779,6 +725,15 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         Py_DECREF(iterator);
         return NULL;
     }
+
+#ifdef MS_WINDOWS
+    if (iterator->path.narrow) {
+        PyErr_SetString(PyExc_TypeError,
+                        "os.scandir() doesn't support bytes paths on Windows, use Unicode instead");
+        Py_DECREF(iterator);
+        return NULL;
+    }
+#endif
 
     /* path_converter doesn't keep path.object around, so do it
        manually for the lifetime of the iterator here (the refcount

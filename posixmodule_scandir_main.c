@@ -13,7 +13,6 @@ Ben's notes:
 
 * haypo's suggestions:
   - new tests
-  - call closedir() before raising StopIteration
   - consider calling opendir/FindFirstFileW directly in scandir()
   - add tests to check that invalid types are rejected, and
     a test to ensure that os.stat() parameter is a keyword-only

@@ -694,14 +694,8 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     PyMem_Free(path_strW);  /* We're done with path_strW now */
 
     if (iterator->handle == INVALID_HANDLE_VALUE) {
-        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
-            path_error(&iterator->path);
-            goto error;
-        } else {
-            /* TODO ben: can this happen with we've specified *.*? what error to raise here? */
-            path_error(&iterator->path);
-            goto error;
-        }
+        path_error(&iterator->path);
+        goto error;
     }
 #else /* POSIX */
     errno = 0;

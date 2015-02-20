@@ -1,6 +1,8 @@
 /*
 Ben's notes:
 
+TODO: fix bug with iterating a second time (what should happen?)
+
 * three files should be #included in posixmodule.c
   - posixmodule_scandir_main.c (this file) after posix_set_blocking
   - posixmodule_scandir_methods.c at end of posix_methods (before Sentinel)
@@ -448,8 +450,6 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
     while (1) {
         if (!iterator->first_time) {
-            iterator->first_time = 0;
-
             Py_BEGIN_ALLOW_THREADS
             success = FindNextFileW(iterator->handle, file_data);
             Py_END_ALLOW_THREADS
@@ -469,6 +469,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         }
 
         /* Loop till we get a non-dot directory or finish iterating */
+        iterator->first_time = 0;
     }
 
     Py_BEGIN_ALLOW_THREADS

@@ -13,7 +13,6 @@ Ben's notes:
 
 * haypo's suggestions:
   - new tests
-  - consider calling opendir/FindFirstFileW directly in scandir()
   - add tests to check that invalid types are rejected, and
     a test to ensure that os.stat() parameter is a keyword-only
     parameter
@@ -568,18 +567,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     struct dirent *direntp;
     Py_ssize_t name_len;
     int is_dot;
-
-    if (!iterator->dirp) {
-        /* First time iterating, prepare path and call opendir */
-        errno = 0;
-        Py_BEGIN_ALLOW_THREADS
-        iterator->dirp = opendir(iterator->path.narrow ? iterator->path.narrow : ".");
-        Py_END_ALLOW_THREADS
-
-        if (!iterator->dirp) {
-            return path_error(&iterator->path);
-        }
-    }
+    int result;
 
     while (1) {
         errno = 0;
@@ -588,23 +576,11 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         Py_END_ALLOW_THREADS
 
         if (!direntp) {
-            int result;
-
             if (errno != 0) {
                 return path_error(&iterator->path);
             }
-
             /* No more files found in directory, stop iterating */
-            Py_BEGIN_ALLOW_THREADS
-            result = closedir(iterator->dirp);
-            Py_END_ALLOW_THREADS
-            if (result != 0) {
-                return path_error(&iterator->path);
-            }
-            iterator->dirp = NULL;
-
-            PyErr_SetNone(PyExc_StopIteration);
-            return NULL;
+            break;
         }
 
         /* Skip over . and .. */
@@ -624,6 +600,17 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
         /* Loop till we get a non-dot directory or finish iterating */
     }
+
+    Py_BEGIN_ALLOW_THREADS
+    result = closedir(iterator->dirp);
+    Py_END_ALLOW_THREADS
+    if (result != 0) {
+        return path_error(&iterator->path);
+    }
+    iterator->dirp = NULL;
+
+    PyErr_SetNone(PyExc_StopIteration);
+    return NULL;
 }
 
 #endif
@@ -719,7 +706,15 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         }
     }
 #else /* POSIX */
-    iterator->dirp = NULL;
+    errno = 0;
+    Py_BEGIN_ALLOW_THREADS
+    iterator->dirp = opendir(iterator->path.narrow ? iterator->path.narrow : ".");
+    Py_END_ALLOW_THREADS
+
+    if (!iterator->dirp) {
+        path_error(&iterator->path);
+        goto error;
+    }
 #endif
 
     /* path_converter doesn't keep path.object around, so do it

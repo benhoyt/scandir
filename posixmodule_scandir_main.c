@@ -674,6 +674,12 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         goto error;
     }
 
+    /* path_converter doesn't keep path.object around, so do it
+       manually for the lifetime of the iterator here (the refcount
+       is decremented in ScandirIterator_dealloc)
+    */
+    Py_XINCREF(iterator->path.object);
+
 #ifdef MS_WINDOWS
     if (iterator->path.narrow) {
         PyErr_SetString(PyExc_TypeError,
@@ -708,12 +714,6 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         goto error;
     }
 #endif
-
-    /* path_converter doesn't keep path.object around, so do it
-       manually for the lifetime of the iterator here (the refcount
-       is decremented in ScandirIterator_dealloc)
-    */
-    Py_XINCREF(iterator->path.object);
 
     return (PyObject *)iterator;
 

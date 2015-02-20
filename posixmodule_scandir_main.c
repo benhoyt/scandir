@@ -50,6 +50,8 @@ typedef struct {
     path_t path;
 #ifdef MS_WINDOWS
     HANDLE handle;
+    WIN32_FIND_DATAW file_data;
+    int first_time;
 #else /* POSIX */
     DIR *dirp;
 #endif
@@ -442,66 +444,44 @@ error:
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
 {
-    WIN32_FIND_DATAW file_data;
+    WIN32_FIND_DATAW *file_data = &iterator->file_data;
+    BOOL success;
 
     while (1) {
-        if (iterator->handle == INVALID_HANDLE_VALUE) {
-            /* First time around, prepare path and call FindFirstFile */
-            wchar_t *path_strW;
-
-            path_strW = join_path_filenameW(iterator->path.wide, L"*.*");
-            if (!path_strW) {
-                return NULL;
-            }
+        if (!iterator->first_time) {
+            iterator->first_time = 0;
 
             Py_BEGIN_ALLOW_THREADS
-            iterator->handle = FindFirstFileW(path_strW, &file_data);
+            success = FindNextFileW(iterator->handle, file_data);
             Py_END_ALLOW_THREADS
-
-            PyMem_Free(path_strW);  /* We're done with path_strW now */
-
-            if (iterator->handle == INVALID_HANDLE_VALUE) {
-                if (GetLastError() != ERROR_FILE_NOT_FOUND) {
-                    return path_error(&iterator->path);
-                }
-                /* No files found, stop iterating */
-                PyErr_SetNone(PyExc_StopIteration);
-                return NULL;
-            }
-        }
-        else {
-            BOOL success;
-
-            Py_BEGIN_ALLOW_THREADS
-            success = FindNextFileW(iterator->handle, &file_data);
-            Py_END_ALLOW_THREADS
-
             if (!success) {
                 if (GetLastError() != ERROR_NO_MORE_FILES) {
                     return path_error(&iterator->path);
                 }
                 /* No more files found in directory, stop iterating */
-                Py_BEGIN_ALLOW_THREADS
-                success = FindClose(iterator->handle);
-                Py_END_ALLOW_THREADS
-                if (!success) {
-                    return path_error(&iterator->path);
-                }
-                iterator->handle = INVALID_HANDLE_VALUE;
-
-                PyErr_SetNone(PyExc_StopIteration);
-                return NULL;
+                break;
             }
         }
 
         /* Skip over . and .. */
-        if (wcscmp(file_data.cFileName, L".") != 0 &&
-                wcscmp(file_data.cFileName, L"..") != 0) {
-            return DirEntry_new(&iterator->path, &file_data);
+        if (wcscmp(file_data->cFileName, L".") != 0 &&
+                wcscmp(file_data->cFileName, L"..") != 0) {
+            return DirEntry_new(&iterator->path, file_data);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */
     }
+
+    Py_BEGIN_ALLOW_THREADS
+    success = FindClose(iterator->handle);
+    Py_END_ALLOW_THREADS
+    if (!success) {
+        return path_error(&iterator->path);
+    }
+    iterator->handle = INVALID_HANDLE_VALUE;
+
+    PyErr_SetNone(PyExc_StopIteration);
+    return NULL;
 }
 
 #else /* POSIX */
@@ -692,6 +672,9 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     ScandirIterator *iterator;
     static char *keywords[] = {"path", NULL};
+#ifdef MS_WINDOWS
+    wchar_t *path_strW;
+#endif
 
     iterator = PyObject_New(ScandirIterator, &ScandirIteratorType);
     if (!iterator) {
@@ -701,25 +684,42 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     iterator->path.function_name = "scandir";
     iterator->path.nullable = 1;
 
-#ifdef MS_WINDOWS
-    iterator->handle = INVALID_HANDLE_VALUE;
-#else /* POSIX */
-    iterator->dirp = NULL;
-#endif
-
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O&:scandir", keywords,
                                      path_converter, &iterator->path)) {
-        Py_DECREF(iterator);
-        return NULL;
+        goto error;
     }
 
 #ifdef MS_WINDOWS
     if (iterator->path.narrow) {
         PyErr_SetString(PyExc_TypeError,
                         "os.scandir() doesn't support bytes path on Windows, use Unicode instead");
-        Py_DECREF(iterator);
-        return NULL;
+        goto error;
     }
+    iterator->first_time = 1;
+
+    path_strW = join_path_filenameW(iterator->path.wide, L"*.*");
+    if (!path_strW) {
+        goto error;
+    }
+
+    Py_BEGIN_ALLOW_THREADS
+    iterator->handle = FindFirstFileW(path_strW, &iterator->file_data);
+    Py_END_ALLOW_THREADS
+
+    PyMem_Free(path_strW);  /* We're done with path_strW now */
+
+    if (iterator->handle == INVALID_HANDLE_VALUE) {
+        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+            path_error(&iterator->path);
+            goto error;
+        } else {
+            /* TODO ben: can this happen with we've specified *.*? what error to raise here? */
+            path_error(&iterator->path);
+            goto error;
+        }
+    }
+#else /* POSIX */
+    iterator->dirp = NULL;
 #endif
 
     /* path_converter doesn't keep path.object around, so do it
@@ -729,4 +729,8 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_XINCREF(iterator->path.object);
 
     return (PyObject *)iterator;
+
+error:
+    Py_DECREF(iterator);
+    return NULL;
 }

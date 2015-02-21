@@ -448,6 +448,12 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     WIN32_FIND_DATAW *file_data = &iterator->file_data;
     BOOL success;
 
+    if (iterator->handle == INVALID_HANDLE_VALUE) {
+        /* Happens if the iterator is iterated twice */
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+
     while (1) {
         if (!iterator->first_time) {
             Py_BEGIN_ALLOW_THREADS
@@ -572,6 +578,12 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     int is_dot;
     int result;
     unsigned char d_type;
+
+    if (!iterator->dirp) {
+        /* Happens if the iterator is iterated twice */
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
 
     while (1) {
         errno = 0;

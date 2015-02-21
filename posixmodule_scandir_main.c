@@ -1,8 +1,6 @@
 /*
 Ben's notes:
 
-TODO: fix bug with iterating a second time (what should happen?)
-
 * three files should be #included in posixmodule.c
   - posixmodule_scandir_main.c (this file) after posix_set_blocking
   - posixmodule_scandir_methods.c at end of posix_methods (before Sentinel)

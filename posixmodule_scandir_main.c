@@ -43,7 +43,7 @@ typedef struct {
     PyObject *stat;
     PyObject *lstat;
 #ifdef MS_WINDOWS
-    struct win32_stat win32_lstat;
+    struct _Py_stat_struct win32_lstat;
     __int64 win32_file_index;
     int got_file_index;
 #else /* POSIX */
@@ -288,7 +288,7 @@ DirEntry_inode(DirEntry *self)
 #ifdef MS_WINDOWS
     if (!self->got_file_index) {
         path_t path = PATH_T_INITIALIZE("DirEntry.inode", NULL, 0, 0);
-        struct win32_stat stat;
+        struct _Py_stat_struct stat;
 
         if (!path_converter(self->path, &path)) {
             return NULL;
@@ -439,7 +439,7 @@ DirEntry_new(path_t *path, WIN32_FIND_DATAW *dataW)
     }
 
     find_data_to_file_info_w(dataW, &file_info, &reparse_tag);
-    attribute_data_to_stat(&file_info, reparse_tag, &entry->win32_lstat);
+    _Py_attribute_data_to_stat(&file_info, reparse_tag, &entry->win32_lstat);
 
     return (PyObject *)entry;
 

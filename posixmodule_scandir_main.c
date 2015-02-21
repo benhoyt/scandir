@@ -1,6 +1,22 @@
 /*
 Ben's notes:
 
+TODO:
+  - add something to docs that DirEntry is not pickleable (near the
+    bit that says it's not intended to be stored in long-term data
+    structures)
+  - ensure we have a test that DirEntry isn't pickleable
+  - ensure we have tests for all cases of is_dir/is_file/is_symlink
+    with a file, dir, symlink to file, symlink to dir
+  - speed test of parsing follow_symlinks keyword param in is_dir/is_file
+
+* haypo's suggestions:
+  - new tests
+  - add test to check that invalid types are rejected, and
+    a test to ensure that DirEntry.stat() and is_dir/is_file
+    parameters are keyword-only parameters
+  - documentation, Victor's or mine or combination of both?
+
 * three files should be #included in posixmodule.c
   - posixmodule_scandir_main.c (this file) after posix_set_blocking
   - posixmodule_scandir_methods.c at end of posix_methods (before Sentinel)
@@ -11,14 +27,6 @@ Ben's notes:
   - initial Py_ARRAY_LENGTH(namebuf)-4 value of "len" is not used
   - "po" is not used
 
-* haypo's suggestions:
-  - new tests
-  - add tests to check that invalid types are rejected, and
-    a test to ensure that os.stat() parameter is a keyword-only
-    parameter
-  - any fixes from Serhiy's code review of scandir-6.patch:
-    http://bugs.python.org/review/22524/#ps13923
-  - documentation
 */
 
 #include "structmember.h"

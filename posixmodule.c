@@ -16452,7 +16452,7 @@ posix_set_blocking(PyObject *self, PyObject *args)
 }
 #endif   /* !MS_WINDOWS */
 
-#include "c:/work/scandir/posixmodule_scandir_main.c"
+#include "../../../scandir/posixmodule_scandir_main.c"
 
 
 /*[clinic input]
@@ -17127,7 +17127,7 @@ static PyMethodDef posix_methods[] = {
     {"get_blocking", posix_get_blocking, METH_VARARGS, get_blocking__doc__},
     {"set_blocking", posix_set_blocking, METH_VARARGS, set_blocking__doc__},
 #endif
-#include "c:/work/scandir/posixmodule_scandir_methods.c"
+#include "../../../scandir/posixmodule_scandir_methods.c"
     {NULL,              NULL}            /* Sentinel */
 };
 
@@ -17790,7 +17790,7 @@ INITFUNC(void)
         if (PyStructSequence_InitType2(&TerminalSizeType,
                                        &TerminalSize_desc) < 0)
             return NULL;
-#include "c:/work/scandir/posixmodule_scandir_init.c"
+#include "../../../scandir/posixmodule_scandir_init.c"
     }
 #if defined(HAVE_WAITID) && !defined(__APPLE__)
     Py_INCREF((PyObject*) &WaitidResultType);

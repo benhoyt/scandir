@@ -8,6 +8,7 @@ TODO:
   - ensure we have a test that DirEntry isn't pickleable
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
+  - ensure we have a test that tests consuming iterator twice
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
 
 * haypo's suggestions:

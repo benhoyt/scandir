@@ -521,7 +521,8 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 }
 
 static PyObject *
-DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type)
+DirEntry_new(path_t *path, char *name, Py_ssize_t name_len,
+             unsigned char d_type, ino_t d_ino)
 {
     DirEntry *entry;
     char *joined_path;
@@ -554,6 +555,7 @@ DirEntry_new(path_t *path, char *name, Py_ssize_t name_len, unsigned char d_type
     }
 
     entry->d_type = d_type;
+    entry->d_ino = d_ino;
 
     return (PyObject *)entry;
 
@@ -569,6 +571,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     Py_ssize_t name_len;
     int is_dot;
     int result;
+    unsigned char d_type;
 
     while (1) {
         errno = 0;
@@ -590,11 +593,12 @@ ScandirIterator_iternext(ScandirIterator *iterator)
                  (name_len == 1 || (direntp->d_name[1] == '.' && name_len == 2));
         if (!is_dot) {
 #if defined(__GLIBC__) && !defined(_DIRENT_HAVE_D_TYPE)
-            /* System doesn't support d_type */
-            return DirEntry_new(&iterator->path, direntp->d_name, name_len, DT_UNKNOWN);
+            d_type = DT_UNKNOWN;  /* System doesn't support d_type */
 #else
-            return DirEntry_new(&iterator->path, direntp->d_name, name_len, direntp->d_type);
+            d_type = direntp->d_type;
 #endif
+            return DirEntry_new(&iterator->path, direntp->d_name,
+                                name_len, d_type, direntp->d_ino);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */

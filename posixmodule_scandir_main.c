@@ -2,7 +2,6 @@
 Ben's notes:
 
 TODO:
-  - fix warning when compiling posixmodule.c on Windows
   - factor out close and call closedir/FindClose also when there's an
     error half way through iteration
   - open bug on listdir('a\0b') issue?
@@ -357,7 +356,7 @@ PyTypeObject DirEntryType = {
     0,                                      /* tp_getattr */
     0,                                      /* tp_setattr */
     0,                                      /* tp_compare */
-    DirEntry_repr,                          /* tp_repr */
+    (reprfunc)DirEntry_repr,                /* tp_repr */
     0,                                      /* tp_as_number */
     0,                                      /* tp_as_sequence */
     0,                                      /* tp_as_mapping */

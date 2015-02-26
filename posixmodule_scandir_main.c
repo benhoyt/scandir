@@ -2,6 +2,8 @@
 Ben's notes:
 
 TODO:
+  - factor out close and call closedir/FindClose also when there's an
+    error half way through iteration
   - open bug on listdir('a\0b') issue
   - change repr to include .name and id()
   - add something to docs that DirEntry is not pickleable (near the

@@ -2918,18 +2918,14 @@ class TestScandir(unittest.TestCase):
         self.assertRaises(FileNotFoundError, os.scandir, '')
 
     def test_consume_iterator_twice(self):
-        return # TODO
         self.create_file("file.txt")
-        path = self.path
-        if os.name != 'nt':
-            path = os.fsencode(path)
-        scandir = os._scandir(path, 10)
+        iterator = os.scandir(self.path)
 
-        entries = list(scandir)
+        entries = list(iterator)
         self.assertEqual(len(entries), 1, entries)
 
-        # check than consuming the iterator twice doesn't crash
-        entries2 = list(scandir)
+        # check than consuming the iterator twice doesn't raise exception
+        entries2 = list(iterator)
         self.assertEqual(len(entries2), 0, entries2)
 
 

@@ -2,8 +2,7 @@
 Ben's notes:
 
 TODO:
-  - fix is_dir/is_file broken symlink issue (should return False
-    rather than raise)
+  - fix warning when compiling posixmodule.c on Windows
   - factor out close and call closedir/FindClose also when there's an
     error half way through iteration
   - open bug on listdir('a\0b') issue?
@@ -202,7 +201,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
     if (need_stat) {
         stat = DirEntry_get_stat(self, follow_symlinks);
         if (!stat) {
-            if (PyErr_ExceptionMatches(PyExc_OSError) && errno == ENOENT) {
+            if (PyErr_ExceptionMatches(PyExc_FileNotFoundError)) {
                 /* If file doesn't exist (anymore), then return False
                    (i.e., say it's not a file/directory) */
                 PyErr_Clear();

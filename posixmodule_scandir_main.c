@@ -6,15 +6,11 @@ TODO:
     rather than raise)
   - factor out close and call closedir/FindClose also when there's an
     error half way through iteration
-  - open bug on listdir('a\0b') issue
-  - change repr to include .name and id()
-  - add something to docs that DirEntry is not pickleable (near the
-    bit that says it's not intended to be stored in long-term data
-    structures)
-  - ensure we have a test that DirEntry isn't pickleable
+  - open bug on listdir('a\0b') issue?
+  - change repr to include .name instead of default (address)
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
-  - ensure we have a test that tests consuming iterator twice
+  - fix test that tests consuming iterator twice
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
 
 * haypo's suggestions:

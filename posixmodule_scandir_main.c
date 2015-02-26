@@ -2,6 +2,8 @@
 Ben's notes:
 
 TODO:
+  - open bug on listdir('a\0b') issue
+  - change repr to include .name and id()
   - add something to docs that DirEntry is not pickleable (near the
     bit that says it's not intended to be stored in long-term data
     structures)

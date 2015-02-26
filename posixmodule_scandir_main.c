@@ -7,7 +7,6 @@ TODO:
   - factor out close and call closedir/FindClose also when there's an
     error half way through iteration
   - open bug on listdir('a\0b') issue?
-  - change repr to include .name instead of default (address)
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
@@ -315,6 +314,12 @@ DirEntry_inode(DirEntry *self)
 #endif
 }
 
+static PyObject *
+DirEntry_repr(DirEntry *self)
+{
+    return PyUnicode_FromFormat("<" MODNAME ".DirEntry %R>", self->name);
+}
+
 static PyMemberDef DirEntry_members[] = {
     {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
      "the entry's base filename, relative to scandir() \"path\" argument"},
@@ -353,7 +358,7 @@ PyTypeObject DirEntryType = {
     0,                                      /* tp_getattr */
     0,                                      /* tp_setattr */
     0,                                      /* tp_compare */
-    0,                                      /* tp_repr */
+    DirEntry_repr,                          /* tp_repr */
     0,                                      /* tp_as_number */
     0,                                      /* tp_as_sequence */
     0,                                      /* tp_as_mapping */

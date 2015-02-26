@@ -2820,20 +2820,17 @@ class TestScandir(unittest.TestCase):
         finally:
             os.chdir(old_dir)
 
-    @support.cpython_only
     def test_repr(self):
         entry = self.create_file_entry()
-        regex = r'<(\w+)\.DirEntry object at 0x([0-9A-Fa-f]+)>'
+        regex = r"<(\w+)\.DirEntry 'file.txt'>"
         self.assertRegex(repr(entry), regex)
 
         match = re.match(regex, repr(entry))
-        module_name, address = match.groups()
+        module_name = match.group(1)
         if os.name == 'nt':
             self.assertEqual(module_name, 'nt')
         else:
             self.assertEqual(module_name, 'posix')
-
-        self.assertEqual(int(address, 16), id(entry))
 
     def test_removed_dir(self):
         path = os.path.join(self.path, 'dir')

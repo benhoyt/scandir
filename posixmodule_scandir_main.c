@@ -2,9 +2,6 @@
 Ben's notes:
 
 TODO:
-  - factor out close and call closedir/FindClose also when there's an
-    error half way through iteration
-  - open bug on listdir('a\0b') issue?
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
@@ -455,6 +452,22 @@ error:
     return NULL;
 }
 
+
+static int
+ScandirIterator_close(ScandirIterator *iterator)
+{
+    BOOL success;
+
+    Py_BEGIN_ALLOW_THREADS
+    success = FindClose(iterator->handle);
+    Py_END_ALLOW_THREADS
+    if (!success) {
+        return 0;
+    }
+    iterator->handle = INVALID_HANDLE_VALUE;
+    return 1;
+}
+
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
 {
@@ -474,6 +487,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             Py_END_ALLOW_THREADS
             if (!success) {
                 if (GetLastError() != ERROR_NO_MORE_FILES) {
+                    ScandirIterator_close(iterator);
                     return path_error(&iterator->path);
                 }
                 /* No more files found in directory, stop iterating */
@@ -491,13 +505,9 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         iterator->first_time = 0;
     }
 
-    Py_BEGIN_ALLOW_THREADS
-    success = FindClose(iterator->handle);
-    Py_END_ALLOW_THREADS
-    if (!success) {
+    if (!ScandirIterator_close(iterator)) {
         return path_error(&iterator->path);
     }
-    iterator->handle = INVALID_HANDLE_VALUE;
 
     PyErr_SetNone(PyExc_StopIteration);
     return NULL;
@@ -581,13 +591,27 @@ error:
     return NULL;
 }
 
+static int
+ScandirIterator_close(ScandirIterator *iterator)
+{
+    int result;
+
+    Py_BEGIN_ALLOW_THREADS
+    result = closedir(iterator->dirp);
+    Py_END_ALLOW_THREADS
+    if (result != 0) {
+        return 0;
+    }
+    iterator->dirp = NULL;
+    return 1;
+}
+
 static PyObject *
 ScandirIterator_iternext(ScandirIterator *iterator)
 {
     struct dirent *direntp;
     Py_ssize_t name_len;
     int is_dot;
-    int result;
     unsigned char d_type;
 
     if (!iterator->dirp) {
@@ -604,6 +628,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
         if (!direntp) {
             if (errno != 0) {
+                ScandirIterator_close(iterator);
                 return path_error(&iterator->path);
             }
             /* No more files found in directory, stop iterating */
@@ -627,13 +652,9 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         /* Loop till we get a non-dot directory or finish iterating */
     }
 
-    Py_BEGIN_ALLOW_THREADS
-    result = closedir(iterator->dirp);
-    Py_END_ALLOW_THREADS
-    if (result != 0) {
+    if (!ScandirIterator_close(iterator)) {
         return path_error(&iterator->path);
     }
-    iterator->dirp = NULL;
 
     PyErr_SetNone(PyExc_StopIteration);
     return NULL;

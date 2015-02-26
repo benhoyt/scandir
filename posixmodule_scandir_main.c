@@ -2,6 +2,8 @@
 Ben's notes:
 
 TODO:
+  - fix is_dir/is_file broken symlink issue (should return False
+    rather than raise)
   - factor out close and call closedir/FindClose also when there's an
     error half way through iteration
   - open bug on listdir('a\0b') issue
@@ -208,7 +210,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
         if (!stat) {
             if (PyErr_ExceptionMatches(PyExc_OSError) && errno == ENOENT) {
                 /* If file doesn't exist (anymore), then return False
-                   (say it's not a directory) */
+                   (i.e., say it's not a file/directory) */
                 PyErr_Clear();
                 Py_RETURN_FALSE;
             }
@@ -402,11 +404,13 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
         return NULL;
     }
     wcscpy(result, path_wide);
-    ch = result[path_len - 1];
-    if (ch != SEP && ch != ALTSEP && ch != L':') {
-        result[path_len++] = SEP;
+    if (path_len > 0) {
+        ch = result[path_len - 1];
+        if (ch != SEP && ch != ALTSEP && ch != L':') {
+            result[path_len++] = SEP;
+        }
+        wcscpy(result + path_len, filename);
     }
-    wcscpy(result + path_len, filename);
     return result;
 }
 
@@ -508,7 +512,6 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 {
     Py_ssize_t path_len;
     char *result;
-    char ch;
 
     if (!path_narrow) { /* Default arg: "." */
         path_narrow = ".";
@@ -529,8 +532,7 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
         return NULL;
     }
     strcpy(result, path_narrow);
-    ch = result[path_len - 1];
-    if (ch != '/') {
+    if (path_len > 0 && result[path_len - 1] != '/') {
         result[path_len++] = '/';
     }
     strcpy(result + path_len, filename);

@@ -545,6 +545,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
                 break;
             }
         }
+        iterator->first_time = 0;
 
         /* Skip over . and .. */
         if (wcscmp(file_data->cFileName, L".") != 0 &&
@@ -552,7 +553,6 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             return DirEntry_from_find_data(&iterator->path, file_data);
 
         /* Loop till we get a non-dot directory or finish iterating */
-        iterator->first_time = 0;
     }
 
     ScandirIterator_close(iterator);

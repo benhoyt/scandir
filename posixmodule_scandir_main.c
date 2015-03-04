@@ -367,10 +367,8 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
     /* The +1's are for the path separator and the NUL */
     size = path_len + 1 + wcslen(filename) + 1;
     result = PyMem_New(wchar_t, size);
-    if (!result) {
-        PyErr_NoMemory();
-        return NULL;
-    }
+    if (!result)
+        return PyErr_NoMemory();
     wcscpy(result, path_wide);
     if (path_len > 0) {
         ch = result[path_len - 1];
@@ -441,10 +439,8 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 
     /* The +1's are for the path separator and the NUL */
     result = PyMem_Malloc(path_len + 1 + filename_len + 1);
-    if (!result) {
-        PyErr_NoMemory();
-        return NULL;
-    }
+    if (!result)
+        return PyErr_NoMemory();
     strcpy(result, path_narrow);
     if (path_len > 0 && result[path_len - 1] != '/')
         result[path_len++] = '/';

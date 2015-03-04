@@ -2822,15 +2822,7 @@ class TestScandir(unittest.TestCase):
 
     def test_repr(self):
         entry = self.create_file_entry()
-        regex = r"<(\w+)\.DirEntry 'file.txt'>"
-        self.assertRegex(repr(entry), regex)
-
-        match = re.match(regex, repr(entry))
-        module_name = match.group(1)
-        if os.name == 'nt':
-            self.assertEqual(module_name, 'nt')
-        else:
-            self.assertEqual(module_name, 'posix')
+        self.assertEqual(repr(entry), "<DirEntry 'file.txt'>")
 
     def test_removed_dir(self):
         path = os.path.join(self.path, 'dir')

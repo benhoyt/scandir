@@ -283,7 +283,7 @@ DirEntry_inode(DirEntry *self)
 static PyObject *
 DirEntry_repr(DirEntry *self)
 {
-    return PyUnicode_FromFormat("<" MODNAME ".DirEntry %R>", self->name);
+    return PyUnicode_FromFormat("<DirEntry %R>", self->name);
 }
 
 static PyMemberDef DirEntry_members[] = {

@@ -164,7 +164,9 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
     int result;
     int is_symlink;
     int need_stat;
+#ifdef MS_WINDOWS
     unsigned long dir_bits;
+#endif
 
 #ifdef MS_WINDOWS
     is_symlink = (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;

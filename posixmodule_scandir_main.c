@@ -255,18 +255,18 @@ DirEntry_inode(DirEntry *self)
 {
 #ifdef MS_WINDOWS
     if (!self->got_file_index) {
-        path_t path = PATH_T_INITIALIZE("DirEntry.inode", NULL, 0, 0);
+        wchar_t *path;
         struct _Py_stat_struct stat;
 
-        if (!path_converter(self->path, &path))
+        path = PyUnicode_AsUnicode(self->path);
+        if (!path)
             return NULL;
 
-        if (win32_lstat_w(path.wide, &stat) != 0) {
-            path_error(&path);
-            path_cleanup(&path);
-            return NULL;
+        if (win32_lstat_w(path, &stat) != 0) {
+            return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
+                                                                0, self->path);
         }
-        path_cleanup(&path);
+
         self->win32_file_index = stat.st_ino;
         self->got_file_index = 1;
     }

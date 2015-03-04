@@ -107,40 +107,39 @@ DirEntry_get_lstat(DirEntry *self)
 static PyObject *
 DirEntry_get_stat(DirEntry *self, int follow_symlinks)
 {
-    if (follow_symlinks) {
-        if (!self->stat) {
-#ifdef MS_WINDOWS
-            if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
-                path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
-
-                if (!path_converter(self->path, &path))
-                    return NULL;
-                self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
-                path_cleanup(&path);
-            }
-            else {
-                self->stat = DirEntry_get_lstat(self);
-            }
-#else /* POSIX */
-            int is_symlink;
-            PyObject *po_is_symlink = DirEntry_is_symlink(self);
-            if (!po_is_symlink)
-                return NULL;
-            is_symlink = PyObject_IsTrue(po_is_symlink);
-            Py_DECREF(po_is_symlink);
-
-            if (is_symlink)
-                self->stat = DirEntry_fetch_stat(self, 1);
-            else
-                self->stat = DirEntry_get_lstat(self);
-#endif
-        }
-        Py_XINCREF(self->stat);
-        return self->stat;
-    }
-    else {
+    if (!follow_symlinks)
         return DirEntry_get_lstat(self);
+
+    if (!self->stat) {
+#ifdef MS_WINDOWS
+        if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
+            path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
+
+            if (!path_converter(self->path, &path))
+                return NULL;
+            self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
+            path_cleanup(&path);
+        }
+        else {
+            self->stat = DirEntry_get_lstat(self);
+        }
+#else /* POSIX */
+        int is_symlink;
+        PyObject *po_is_symlink = DirEntry_is_symlink(self);
+        if (!po_is_symlink)
+            return NULL;
+        is_symlink = PyObject_IsTrue(po_is_symlink);
+        Py_DECREF(po_is_symlink);
+
+        if (is_symlink)
+            self->stat = DirEntry_fetch_stat(self, 1);
+        else
+            self->stat = DirEntry_get_lstat(self);
+#endif
     }
+
+    Py_XINCREF(self->stat);
+    return self->stat;
 }
 
 static PyObject *

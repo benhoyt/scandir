@@ -398,14 +398,14 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     entry->lstat = NULL;
     entry->got_file_index = 0;
 
-    entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
+    entry->name = PyUnicode_FromWideChar(dataW->cFileName, -1);
     if (!entry->name)
         goto error;
 
     joined_path = join_path_filenameW(path->wide, dataW->cFileName);
     if (!joined_path)
         goto error;
-    entry->path = PyUnicode_FromWideChar(joined_path, wcslen(joined_path));
+    entry->path = PyUnicode_FromWideChar(joined_path, -1);
     PyMem_Free(joined_path);
     if (!entry->path)
         goto error;

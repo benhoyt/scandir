@@ -352,6 +352,7 @@ static wchar_t *
 join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 {
     Py_ssize_t path_len;
+    Py_ssize_t size;
     wchar_t *result;
     wchar_t ch;
 
@@ -364,7 +365,8 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
     }
 
     /* The +1's are for the path separator and the NUL */
-    result = PyMem_Malloc((path_len + 1 + wcslen(filename) + 1) * sizeof(wchar_t));
+    size = path_len + 1 + wcslen(filename) + 1;
+    result = PyMem_New(wchar_t, size);
     if (!result) {
         PyErr_NoMemory();
         return NULL;

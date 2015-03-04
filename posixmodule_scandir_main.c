@@ -416,7 +416,7 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     return (PyObject *)entry;
 
 error:
-    Py_XDECREF(entry);
+    Py_DECREF(entry);
     return NULL;
 }
 

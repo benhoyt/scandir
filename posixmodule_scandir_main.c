@@ -677,6 +677,8 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     static char *keywords[] = {"path", NULL};
 #ifdef MS_WINDOWS
     wchar_t *path_strW;
+#else
+    char *path;
 #endif
 
     iterator = PyObject_New(ScandirIterator, &ScandirIteratorType);
@@ -720,8 +722,13 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     }
 #else /* POSIX */
     errno = 0;
+    if (iterator->path.narrow)
+        path = iterator->path.narrow;
+    else
+        path = ".";
+
     Py_BEGIN_ALLOW_THREADS
-    iterator->dirp = opendir(iterator->path.narrow ? iterator->path.narrow : ".");
+    iterator->dirp = opendir(path);
     Py_END_ALLOW_THREADS
 
     if (!iterator->dirp) {

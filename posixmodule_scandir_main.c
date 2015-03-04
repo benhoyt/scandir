@@ -712,7 +712,7 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     iterator->handle = FindFirstFileW(path_strW, &iterator->file_data);
     Py_END_ALLOW_THREADS
 
-    PyMem_Free(path_strW);  /* We're done with path_strW now */
+    PyMem_Free(path_strW);
 
     if (iterator->handle == INVALID_HANDLE_VALUE) {
         path_error(&iterator->path);

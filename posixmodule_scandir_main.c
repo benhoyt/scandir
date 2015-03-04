@@ -58,7 +58,7 @@ DirEntry_dealloc(DirEntry *entry)
     Py_TYPE(entry)->tp_free((PyObject *)entry);
 }
 
-/* Forward reference to make it easier to implement DirEntry_is_symlink etc */
+/* Forward reference */
 static PyObject *
 DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
@@ -440,7 +440,7 @@ error:
     return NULL;
 }
 
-#else  /* POSIX */
+#else /* POSIX */
 
 static char *
 join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)

@@ -426,6 +426,7 @@ static char *
 join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 {
     Py_ssize_t path_len;
+    Py_ssize_t size;
     char *result;
 
     if (!path_narrow) { /* Default arg: "." */
@@ -440,7 +441,8 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
         filename_len = strlen(filename);
 
     /* The +1's are for the path separator and the NUL */
-    result = PyMem_Malloc(path_len + 1 + filename_len + 1);
+    size = path_len + 1 + filename_len + 1;
+    result = PyMem_New(char, size);
     if (!result) {
         PyErr_NoMemory();
         return NULL;

@@ -194,8 +194,8 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
         mode = PyLong_AsLong(st_mode);
         if (mode == -1 && PyErr_Occurred())
             goto error;
-        Py_DECREF(st_mode);
-        Py_DECREF(stat);
+        Py_CLEAR(st_mode);
+        Py_CLEAR(stat);
         result = (mode & S_IFMT) == mode_bits;
     }
     else if (is_symlink) {

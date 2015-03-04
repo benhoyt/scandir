@@ -367,8 +367,10 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
     /* The +1's are for the path separator and the NUL */
     size = path_len + 1 + wcslen(filename) + 1;
     result = PyMem_New(wchar_t, size);
-    if (!result)
-        return PyErr_NoMemory();
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
     wcscpy(result, path_wide);
     if (path_len > 0) {
         ch = result[path_len - 1];
@@ -380,7 +382,7 @@ join_path_filenameW(wchar_t *path_wide, wchar_t* filename)
 }
 
 static PyObject *
-DirEntry_new(path_t *path, WIN32_FIND_DATAW *dataW)
+DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
 {
     DirEntry *entry;
     BY_HANDLE_FILE_INFORMATION file_info;
@@ -439,8 +441,10 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 
     /* The +1's are for the path separator and the NUL */
     result = PyMem_Malloc(path_len + 1 + filename_len + 1);
-    if (!result)
-        return PyErr_NoMemory();
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
     strcpy(result, path_narrow);
     if (path_len > 0 && result[path_len - 1] != '/')
         result[path_len++] = '/';
@@ -449,8 +453,8 @@ join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
 }
 
 static PyObject *
-DirEntry_new(path_t *path, char *name, Py_ssize_t name_len,
-             unsigned char d_type, ino_t d_ino)
+DirEntry_from_posix_info(path_t *path, char *name, Py_ssize_t name_len,
+                         unsigned char d_type, ino_t d_ino)
 {
     DirEntry *entry;
     char *joined_path;
@@ -550,7 +554,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         /* Skip over . and .. */
         if (wcscmp(file_data->cFileName, L".") != 0 &&
                 wcscmp(file_data->cFileName, L"..") != 0)
-            return DirEntry_new(&iterator->path, file_data);
+            return DirEntry_from_find_data(&iterator->path, file_data);
 
         /* Loop till we get a non-dot directory or finish iterating */
         iterator->first_time = 0;
@@ -618,8 +622,8 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 #else
             d_type = direntp->d_type;
 #endif
-            return DirEntry_new(&iterator->path, direntp->d_name,
-                                name_len, d_type, direntp->d_ino);
+            return DirEntry_from_posix_info(&iterator->path, direntp->d_name,
+                                            name_len, d_type, direntp->d_ino);
         }
 
         /* Loop till we get a non-dot directory or finish iterating */

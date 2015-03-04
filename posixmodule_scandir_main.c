@@ -2,6 +2,7 @@
 Ben's notes:
 
 TODO:
+  - PyObject_IsTrue is annoying (see Victor's code review)
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
@@ -160,7 +161,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
     PyObject *stat = NULL;
     PyObject *st_mode = NULL;
     int mode;
-    int result = 0;
+    int result;
     int is_symlink;
     int need_stat;
     unsigned long dir_bits;
@@ -172,6 +173,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
     is_symlink = self->d_type == DT_LNK;
     need_stat = self->d_type == DT_UNKNOWN || (follow_symlinks && is_symlink);
 #endif
+
     if (need_stat) {
         stat = DirEntry_get_stat(self, follow_symlinks);
         if (!stat) {

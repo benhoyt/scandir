@@ -89,14 +89,36 @@ DirEntry_is_symlink(DirEntry *self)
 static PyObject *
 DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 {
-    PyObject *result;
-    path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
+    int result;
+    struct _Py_stat_struct stat;
 
-    if (!path_converter(self->path, &path))
+#ifdef MS_WINDOWS
+    wchar_t *path;
+
+    path = PyUnicode_AsUnicode(self->path);
+    if (!path)
         return NULL;
-    result = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, follow_symlinks);
-    path_cleanup(&path);
-    return result;
+
+    if (follow_symlinks)
+        result = win32_stat_w(path, &stat);
+    else
+        result = win32_lstat_w(path, &stat);
+
+    if (result != 0) {
+        return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
+                                                            0, self->path);
+    }
+#else /* POSIX */
+    if (follow_symlinks)
+        result = STAT(self->path.narrow, &stat);
+    else
+        result = LSTAT(self->path.narrow, &stat);
+
+    if (result != 0)
+        return PyErr_SetFromErrnoWithFilenameObject(PyExc_OSError, self->path);
+#endif
+
+    return _pystat_fromstructstat(&stat);
 }
 
 static PyObject *

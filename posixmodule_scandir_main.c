@@ -261,7 +261,7 @@ DirEntry_inode(DirEntry *self)
         if (!path)
             return NULL;
 
-        if (win32_lstat_w(path, &stat) != 0) { /* TODO: path_error */
+        if (win32_lstat_w(path, &stat) != 0) {
             return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
                                                                 0, self->path);
         }

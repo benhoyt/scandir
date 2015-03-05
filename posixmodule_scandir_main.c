@@ -2,7 +2,6 @@
 Ben's notes:
 
 TODO:
-  - PyObject_IsTrue is annoying (see Victor's code review)
   - ensure we have tests for all cases of is_dir/is_file/is_symlink
     with a file, dir, symlink to file, symlink to dir
   - speed test of parsing follow_symlinks keyword param in is_dir/is_file
@@ -60,23 +59,33 @@ DirEntry_dealloc(DirEntry *entry)
 }
 
 /* Forward reference */
-static PyObject *
-DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
+static int
+DirEntry_test_mode_helper(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
+
+static int
+DirEntry_is_symlink_helper(DirEntry *self)
+{
+#ifdef MS_WINDOWS
+    return (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;
+#else /* POSIX */
+    if (self->d_type != DT_UNKNOWN)
+        return self->d_type == DT_LNK;
+    else
+        return DirEntry_test_mode_helper(self, 0, S_IFLNK);
+#endif
+}
 
 static PyObject *
 DirEntry_is_symlink(DirEntry *self)
 {
-#ifdef MS_WINDOWS
-    return PyBool_FromLong((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK);
-#else /* POSIX */
-    if (self->d_type != DT_UNKNOWN)
-        return PyBool_FromLong(self->d_type == DT_LNK);
-    else
-        return DirEntry_test_mode(self, 0, S_IFLNK);
-#endif
+    int result;
+
+    result = DirEntry_is_symlink_helper(self);
+    if (result == -1)
+        return NULL;
+    return PyBool_FromLong(result);
 }
 
-#ifndef MS_WINDOWS /* POSIX */
 static PyObject *
 DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 {
@@ -89,7 +98,6 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     path_cleanup(&path);
     return result;
 }
-#endif
 
 static PyObject *
 DirEntry_get_lstat(DirEntry *self)
@@ -112,31 +120,10 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
         return DirEntry_get_lstat(self);
 
     if (!self->stat) {
-#ifdef MS_WINDOWS
-        if ((self->win32_lstat.st_mode & S_IFMT) == S_IFLNK) {
-            path_t path = PATH_T_INITIALIZE("DirEntry.stat", NULL, 0, 0);
-
-            if (!path_converter(self->path, &path))
-                return NULL;
-            self->stat = posix_do_stat("DirEntry.stat", &path, DEFAULT_DIR_FD, 1);
-            path_cleanup(&path);
-        }
-        else {
-            self->stat = DirEntry_get_lstat(self);
-        }
-#else /* POSIX */
-        int is_symlink;
-        PyObject *po_is_symlink = DirEntry_is_symlink(self);
-        if (!po_is_symlink)
-            return NULL;
-        is_symlink = PyObject_IsTrue(po_is_symlink);
-        Py_DECREF(po_is_symlink);
-
-        if (is_symlink)
+        if (DirEntry_is_symlink_helper(self))
             self->stat = DirEntry_fetch_stat(self, 1);
         else
             self->stat = DirEntry_get_lstat(self);
-#endif
     }
 
     Py_XINCREF(self->stat);
@@ -155,8 +142,9 @@ DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
     return DirEntry_get_stat(self, follow_symlinks);
 }
 
-static PyObject *
-DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
+/* Returns -1 on error, 0 for False, 1 for True */
+static int
+DirEntry_test_mode_helper(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
 {
     PyObject *stat = NULL;
     PyObject *st_mode = NULL;
@@ -183,7 +171,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
                 /* If file doesn't exist (anymore), then return False
                    (i.e., say it's not a file/directory) */
                 PyErr_Clear();
-                Py_RETURN_FALSE;
+                return 0;
             }
             goto error;
         }
@@ -218,12 +206,23 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
 #endif
     }
 
-    return PyBool_FromLong(result);
+    return result;
 
 error:
     Py_XDECREF(st_mode);
     Py_XDECREF(stat);
-    return NULL;
+    return -1;
+}
+
+static PyObject *
+DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
+{
+    int result;
+
+    result = DirEntry_test_mode_helper(self, follow_symlinks, mode_bits);
+    if (result == -1)
+        return NULL;
+    return PyBool_FromLong(result);
 }
 
 static PyObject *
@@ -262,7 +261,7 @@ DirEntry_inode(DirEntry *self)
         if (!path)
             return NULL;
 
-        if (win32_lstat_w(path, &stat) != 0) {
+        if (win32_lstat_w(path, &stat) != 0) { /* TODO: path_error */
             return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
                                                                 0, self->path);
         }

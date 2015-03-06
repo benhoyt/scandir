@@ -749,12 +749,12 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
         goto error;
     }
 #else /* POSIX */
-    errno = 0;
     if (iterator->path.narrow)
         path = iterator->path.narrow;
     else
         path = ".";
 
+    errno = 0;
     Py_BEGIN_ALLOW_THREADS
     iterator->dirp = opendir(path);
     Py_END_ALLOW_THREADS

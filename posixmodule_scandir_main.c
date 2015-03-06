@@ -174,7 +174,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
 {
     PyObject *stat = NULL;
     PyObject *st_mode = NULL;
-    int mode;
+    long mode;
     int result;
     int is_symlink;
     int need_stat;

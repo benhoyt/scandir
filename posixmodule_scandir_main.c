@@ -723,6 +723,12 @@ posix_scandir(PyObject *self, PyObject *args, PyObject *kwargs)
     iterator->path.function_name = "scandir";
     iterator->path.nullable = 1;
 
+#ifdef MS_WINDOWS
+    iterator->handle = INVALID_HANDLE_VALUE;
+#else
+    iterator->dirp = NULL;
+#endif
+
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O&:scandir", keywords,
                                      path_converter, &iterator->path))
         goto error;

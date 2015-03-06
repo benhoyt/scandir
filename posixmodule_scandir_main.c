@@ -110,10 +110,17 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
                                                             0, self->path);
     }
 #else /* POSIX */
+    PyObject *bytes;
+    char *path;
+
+    if (!PyUnicode_FSConverter(self->path, &bytes))
+        return NULL;
+    path = PyBytes_AS_STRING(bytes);
+
     if (follow_symlinks)
-        result = STAT(self->path.narrow, &stat);
+        result = STAT(path, &stat);
     else
-        result = LSTAT(self->path.narrow, &stat);
+        result = LSTAT(path, &stat);
 
     if (result != 0)
         return PyErr_SetFromErrnoWithFilenameObject(PyExc_OSError, self->path);

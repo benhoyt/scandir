@@ -549,7 +549,6 @@ ScandirIterator_close(ScandirIterator *iterator)
     FindClose(iterator->handle);
     Py_END_ALLOW_THREADS
     iterator->handle = INVALID_HANDLE_VALUE;
-    return;
 }
 
 static PyObject *

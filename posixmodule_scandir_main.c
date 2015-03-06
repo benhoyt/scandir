@@ -60,7 +60,7 @@ DirEntry_dealloc(DirEntry *entry)
 
 /* Forward reference */
 static int
-DirEntry_test_mode_helper(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
+DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
 static int
 DirEntry_is_symlink_helper(DirEntry *self)
@@ -71,7 +71,7 @@ DirEntry_is_symlink_helper(DirEntry *self)
     if (self->d_type != DT_UNKNOWN)
         return self->d_type == DT_LNK;
     else
-        return DirEntry_test_mode_helper(self, 0, S_IFLNK);
+        return DirEntry_test_mode(self, 0, S_IFLNK);
 #endif
 }
 
@@ -166,7 +166,7 @@ DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
 
 /* Returns -1 on error, 0 for False, 1 for True */
 static int
-DirEntry_test_mode_helper(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
+DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
 {
     PyObject *stat = NULL;
     PyObject *st_mode = NULL;
@@ -237,11 +237,11 @@ error:
 }
 
 static PyObject *
-DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
+DirEntry_py_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
 {
     int result;
 
-    result = DirEntry_test_mode_helper(self, follow_symlinks, mode_bits);
+    result = DirEntry_test_mode(self, follow_symlinks, mode_bits);
     if (result == -1)
         return NULL;
     return PyBool_FromLong(result);
@@ -256,7 +256,7 @@ DirEntry_is_dir(DirEntry *self, PyObject *args, PyObject *kwargs)
                                      follow_symlinks_keywords, &follow_symlinks))
         return NULL;
 
-    return DirEntry_test_mode(self, follow_symlinks, S_IFDIR);
+    return DirEntry_py_test_mode(self, follow_symlinks, S_IFDIR);
 }
 
 static PyObject *
@@ -268,7 +268,7 @@ DirEntry_is_file(DirEntry *self, PyObject *args, PyObject *kwargs)
                                      follow_symlinks_keywords, &follow_symlinks))
         return NULL;
 
-    return DirEntry_test_mode(self, follow_symlinks, S_IFREG);
+    return DirEntry_py_test_mode(self, follow_symlinks, S_IFREG);
 }
 
 static PyObject *

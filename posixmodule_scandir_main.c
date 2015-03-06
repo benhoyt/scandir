@@ -178,6 +178,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
     int result;
     int is_symlink;
     int need_stat;
+    _Py_IDENTIFIER(st_mode);
 #ifdef MS_WINDOWS
     unsigned long dir_bits;
 #endif
@@ -201,7 +202,7 @@ DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits
             }
             goto error;
         }
-        st_mode = PyObject_GetAttrString(stat, "st_mode");
+        st_mode = _PyObject_GetAttrId(stat, &PyId_st_mode);
         if (!st_mode)
             goto error;
 

@@ -91,7 +91,7 @@ static PyObject *
 DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 {
     int result;
-    struct _Py_stat_struct stat;
+    struct _Py_stat_struct st;
 
 #ifdef MS_WINDOWS
     wchar_t *path;
@@ -101,9 +101,9 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
         return NULL;
 
     if (follow_symlinks)
-        result = win32_stat_w(path, &stat);
+        result = win32_stat_w(path, &st);
     else
-        result = win32_lstat_w(path, &stat);
+        result = win32_lstat_w(path, &st);
 
     if (result != 0) {
         return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
@@ -118,15 +118,15 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     path = PyBytes_AS_STRING(bytes);
 
     if (follow_symlinks)
-        result = STAT(path, &stat);
+        result = STAT(path, &st);
     else
-        result = LSTAT(path, &stat);
+        result = LSTAT(path, &st);
 
     if (result != 0)
         return PyErr_SetFromErrnoWithFilenameObject(PyExc_OSError, self->path);
 #endif
 
-    return _pystat_fromstructstat(&stat);
+    return _pystat_fromstructstat(&st);
 }
 
 static PyObject *

@@ -2917,6 +2917,10 @@ class TestScandir(unittest.TestCase):
         entries2 = list(iterator)
         self.assertEqual(len(entries2), 0, entries2)
 
+    def test_bad_path_type(self):
+        for obj in [1234, 1.234, {}, []]:
+            self.assertRaises(TypeError, os.scandir, obj)
+
 
 if __name__ == "__main__":
     unittest.main()

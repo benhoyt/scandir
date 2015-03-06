@@ -431,6 +431,7 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     joined_path = join_path_filenameW(path->wide, dataW->cFileName);
     if (!joined_path)
         goto error;
+
     entry->path = PyUnicode_FromWideChar(joined_path, -1);
     PyMem_Free(joined_path);
     if (!entry->path)
@@ -449,7 +450,7 @@ error:
 #else /* POSIX */
 
 static char *
-join_path_filenameA(char *path_narrow, char* filename, Py_ssize_t filename_len)
+join_path_filename(char *path_narrow, char* filename, Py_ssize_t filename_len)
 {
     Py_ssize_t path_len;
     Py_ssize_t size;
@@ -495,7 +496,7 @@ DirEntry_from_posix_info(path_t *path, char *name, Py_ssize_t name_len,
     entry->stat = NULL;
     entry->lstat = NULL;
 
-    joined_path = join_path_filenameA(path->narrow, name, name_len);
+    joined_path = join_path_filename(path->narrow, name, name_len);
     if (!joined_path)
         goto error;
 

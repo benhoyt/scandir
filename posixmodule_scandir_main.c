@@ -62,6 +62,7 @@ DirEntry_dealloc(DirEntry *entry)
 static int
 DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
+/* Set exception and return -1 on error, 0 for False, 1 for True */
 static int
 DirEntry_is_symlink(DirEntry *self)
 {
@@ -142,7 +143,10 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
         return DirEntry_get_lstat(self);
 
     if (!self->stat) {
-        if (DirEntry_is_symlink(self))
+        int result = DirEntry_is_symlink(self);
+        if (result == -1)
+            return NULL;
+        else if (result)
             self->stat = DirEntry_fetch_stat(self, 1);
         else
             self->stat = DirEntry_get_lstat(self);
@@ -164,7 +168,7 @@ DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
     return DirEntry_get_stat(self, follow_symlinks);
 }
 
-/* Returns -1 on error, 0 for False, 1 for True */
+/* Set exception and return -1 on error, 0 for False, 1 for True */
 static int
 DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits)
 {

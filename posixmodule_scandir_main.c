@@ -63,7 +63,7 @@ static int
 DirEntry_test_mode(DirEntry *self, int follow_symlinks, unsigned short mode_bits);
 
 static int
-DirEntry_is_symlink_helper(DirEntry *self)
+DirEntry_is_symlink(DirEntry *self)
 {
 #ifdef MS_WINDOWS
     return (self->win32_lstat.st_mode & S_IFMT) == S_IFLNK;
@@ -76,11 +76,11 @@ DirEntry_is_symlink_helper(DirEntry *self)
 }
 
 static PyObject *
-DirEntry_is_symlink(DirEntry *self)
+DirEntry_py_is_symlink(DirEntry *self)
 {
     int result;
 
-    result = DirEntry_is_symlink_helper(self);
+    result = DirEntry_is_symlink(self);
     if (result == -1)
         return NULL;
     return PyBool_FromLong(result);
@@ -142,7 +142,7 @@ DirEntry_get_stat(DirEntry *self, int follow_symlinks)
         return DirEntry_get_lstat(self);
 
     if (!self->stat) {
-        if (DirEntry_is_symlink_helper(self))
+        if (DirEntry_is_symlink(self))
             self->stat = DirEntry_fetch_stat(self, 1);
         else
             self->stat = DirEntry_get_lstat(self);
@@ -322,7 +322,7 @@ static PyMethodDef DirEntry_methods[] = {
     {"is_file", (PyCFunction)DirEntry_is_file, METH_VARARGS | METH_KEYWORDS,
      "return True if the entry is a file; cached per entry"
     },
-    {"is_symlink", (PyCFunction)DirEntry_is_symlink, METH_NOARGS,
+    {"is_symlink", (PyCFunction)DirEntry_py_is_symlink, METH_NOARGS,
      "return True if the entry is a symbolic link; cached per entry"
     },
     {"stat", (PyCFunction)DirEntry_stat, METH_VARARGS | METH_KEYWORDS,

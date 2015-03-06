@@ -650,7 +650,7 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         /* Loop till we get a non-dot directory or finish iterating */
     }
 
-    ScandirIterator_close(iterator)
+    ScandirIterator_close(iterator);
 
     PyErr_SetNone(PyExc_StopIteration);
     return NULL;

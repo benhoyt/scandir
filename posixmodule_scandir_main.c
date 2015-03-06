@@ -558,8 +558,10 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     BOOL success;
 
     /* Happens if the iterator is iterated twice */
-    if (iterator->handle == INVALID_HANDLE_VALUE)
-        goto stop;
+    if (iterator->handle == INVALID_HANDLE_VALUE) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
 
     while (1) {
         if (!iterator->first_time) {
@@ -585,7 +587,6 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
     ScandirIterator_close(iterator);
 
-stop:
     PyErr_SetNone(PyExc_StopIteration);
     return NULL;
 }
@@ -614,8 +615,10 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     unsigned char d_type;
 
     /* Happens if the iterator is iterated twice */
-    if (!iterator->dirp)
-        goto stop;
+    if (!iterator->dirp) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
 
     while (1) {
         errno = 0;
@@ -649,7 +652,6 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
     ScandirIterator_close(iterator)
 
-stop:
     PyErr_SetNone(PyExc_StopIteration);
     return NULL;
 }

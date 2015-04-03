@@ -168,10 +168,9 @@ using it instead of creating a tree."""
 
     if scandir.scandir == getattr(os, 'scandir', None):
         print("Using Python 3.5's builtin os.scandir()")
-        os.walk = os_walk_pre_35
-    elif scandir.scandir == getattr(scandir, 'scandir_c', None):
+    elif scandir.scandir == scandir.scandir_c:
         print('Using fast C version of scandir')
-    elif scandir.scandir == getattr(scandir, 'scandir_python', None):
+    elif scandir.scandir == scandir.scandir_python:
         print('Using slower ctypes version of scandir')
     elif scandir.scandir == scandir.scandir_generic:
         print('Using very slow generic version of scandir')
@@ -179,7 +178,8 @@ using it instead of creating a tree."""
         print('ERROR: Unsure which version of scandir we are using!')
         sys.exit(1)
 
-    if os.walk == os_walk_pre_35:
+    if hasattr(os, 'scandir'):
+        os.walk = os_walk_pre_35
         print('Comparing against pre-Python 3.5 version of os.walk()')
     else:
         print('Comparing against builtin version of os.walk()')

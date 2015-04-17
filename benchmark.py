@@ -64,10 +64,12 @@ def get_tree_size(path):
     size = 0
     try:
         for entry in scandir.scandir(path):
-            if entry.is_dir(follow_symlinks=False):
+            if entry.is_symlink():
+                pass
+            elif entry.is_dir():
                 size += get_tree_size(os.path.join(path, entry.name))
             else:
-                size += entry.stat(follow_symlinks=False).st_size
+                size += entry.stat().st_size
     except OSError:
         pass
     return size
@@ -82,7 +84,9 @@ def benchmark(path, get_size=False):
             for root, dirs, files in os.walk(path):
                 for filename in files:
                     fullname = os.path.join(root, filename)
-                    size += os.path.getsize(fullname)
+                    st = os.lstat(fullname)
+                    if not stat.S_ISLNK(st.st_mode):
+                        size += st.st_size
             sizes['os_walk'] = size
 
         def do_scandir_walk():

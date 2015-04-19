@@ -1924,21 +1924,20 @@ features:
 
    Using :func:`scandir` instead of :func:`listdir` can significantly
    increase the performance of code that also needs file type or file
-   attribute (stat) information, because :class:`DirEntry` objects
-   expose this information if the operating system provides it
-   when scanning a directory. All :class:`DirEntry` methods may
-   perform a system call, but :func:`DirEntry.is_dir` and
-   :func:`DirEntry.is_file` usually only require a system call for
-   symbolic links (on both POSIX and Windows). :func:`DirEntry.stat`
-   always requires a system call on POSIX but only requires one for
+   attribute information, because :class:`DirEntry` objects expose this
+   information if the operating system provides it when scanning a directory.
+   All :class:`DirEntry` methods may perform a system call, but
+   :func:`~DirEntry.is_dir` and :func:`~DirEntry.is_file` usually only
+   require a system call for symbolic links; :func:`DirEntry.stat`
+   always requires a system call on Unix but only requires one for
    symbolic links on Windows.
 
-   On POSIX, *path* can be of type :class:`str` or :class:`bytes` (use
+   On Unix, *path* can be of type :class:`str` or :class:`bytes` (use
    :func:`~os.fsencode` and :func:`~os.fsdecode` to encode and decode
-   ``byte`` paths). On Windows, *path* must be of type :class:`str`.
+   :class:`bytes` paths). On Windows, *path* must be of type :class:`str`.
    On both sytems, the type of the :attr:`~DirEntry.name` and
-   :attr:`~DirEntry.path` attributes of the :class:`DirEntry` objects
-   will be of the same type as *path*.
+   :attr:`~DirEntry.path` attributes of each :class:`DirEntry` will be of
+   the same type as *path*.
 
    The following example shows a simple use of :func:`scandir` to display all
    the files (excluding directories) in the given *path* that don't start with
@@ -1949,10 +1948,7 @@ features:
          if not entry.name.startswith('.') and entry.is_file():
              print(entry.name)
 
-   .. seealso::
-
-      The :func:`listdir` function is slightly more efficient if you
-      only need the names of the directory entries.
+   Availability: Unix, Windows.
 
    .. note::
 
@@ -2004,7 +2000,7 @@ features:
       The entry's full path name: equivalent to ``os.path.join(scandir_path,
       entry.name)`` where *scandir_path* is the :func:`scandir` *path*
       argument.  The path is only absolute if the :func:`scandir` *path*
-      argument is absolute.
+      argument was absolute.
 
       The :attr:`path` attribute will be of the same type (``str`` or
       ``bytes``) as the :func:`scandir` *path* argument. Use
@@ -2017,7 +2013,7 @@ features:
       The result is cached on the ``DirEntry`` object, use ``os.stat(entry.path,
       follow_symlinks=False).st_ino`` to fetch up-to-date information.
 
-      On POSIX, no system call is required.
+      On Unix, no system call is required.
 
    .. method:: is_dir(\*, follow_symlinks=True)
 
@@ -2077,8 +2073,8 @@ features:
       follows symbolic links by default; to stat a symbolic link add the
       ``follow_symlinks=False`` argument.
 
-      On POSIX systems, this method always requires a system call. On
-      Windows, ``DirEntry.stat()`` requires a system call only if the
+      On Unix, this method always requires a system call. On Windows,
+      ``DirEntry.stat()`` requires a system call only if the
       entry is a symbolic link, and ``DirEntry.stat(follow_symlinks=False)``
       never requires a system call.
 

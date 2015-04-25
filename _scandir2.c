@@ -46,6 +46,28 @@ comment):
 
 /* SECTION: Helper utilities from posixmodule.c, fileutils.h, etc */
 
+#ifdef HAVE_DIRENT_H
+#include <dirent.h>
+#define NAMLEN(dirent) strlen((dirent)->d_name)
+#else
+#if defined(__WATCOMC__) && !defined(__QNX__)
+#include <direct.h>
+#define NAMLEN(dirent) strlen((dirent)->d_name)
+#else
+#define dirent direct
+#define NAMLEN(dirent) (dirent)->d_namlen
+#endif
+#ifdef HAVE_SYS_NDIR_H
+#include <sys/ndir.h>
+#endif
+#ifdef HAVE_SYS_DIR_H
+#include <sys/dir.h>
+#endif
+#ifdef HAVE_NDIR_H
+#include <ndir.h>
+#endif
+#endif
+
 #ifndef Py_CLEANUP_SUPPORTED
 #define Py_CLEANUP_SUPPORTED 0x20000
 #endif
@@ -395,7 +417,11 @@ fill_time(PyObject *v, int index, time_t sec, unsigned long nsec)
 #if SIZEOF_TIME_T > SIZEOF_LONG
     PyObject *s = PyLong_FromLongLong((PY_LONG_LONG)sec);
 #else
+#if PY_MAJOR_VERSION >= 3
+    PyObject *s = PyLong_FromLong((long)sec);
+#else
     PyObject *s = PyInt_FromLong((long)sec);
+#endif
 #endif
     PyObject *ns_fractional = PyLong_FromUnsignedLong(nsec);
     PyObject *s_in_ns = NULL;
@@ -482,6 +508,30 @@ exit:
 #define ST_FILE_ATTRIBUTES_IDX (ST_BIRTHTIME_IDX+1)
 #else
 #define ST_FILE_ATTRIBUTES_IDX ST_BIRTHTIME_IDX
+#endif
+
+#ifdef HAVE_LONG_LONG
+#  define _PyLong_FromDev PyLong_FromLongLong
+#else
+#  define _PyLong_FromDev PyLong_FromLong
+#endif
+
+#ifndef MS_WINDOWS
+PyObject *
+_PyLong_FromUid(uid_t uid)
+{
+    if (uid == (uid_t)-1)
+        return PyLong_FromLong(-1);
+    return PyLong_FromUnsignedLong(uid);
+}
+
+PyObject *
+_PyLong_FromGid(gid_t gid)
+{
+    if (gid == (gid_t)-1)
+        return PyLong_FromLong(-1);
+    return PyLong_FromUnsignedLong(gid);
+}
 #endif
 
 /* pack a system stat C structure into the Python stat tuple

@@ -840,10 +840,13 @@ path_converter(PyObject *o, void *p) {
         path->cleanup = unicode;
         return Py_CLEANUP_SUPPORTED;
 #else
-        int converted = PyUnicode_FSConverter(unicode, &bytes);
-        Py_DECREF(unicode);
-        if (!converted)
+#if PY_MAJOR_VERSION >= 3
+        if (!PyUnicode_FSConverter(unicode, &bytes))
             bytes = NULL;
+#else
+        bytes = PyUnicode_AsEncodedString(unicode, Py_FileSystemDefaultEncoding, "strict");
+#endif
+        Py_DECREF(unicode);
 #endif
     }
     else {
@@ -1023,8 +1026,12 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     PyObject *bytes;
     char *path;
 
+#if PY_MAJOR_VERSION >= 3
     if (!PyUnicode_FSConverter(self->path, &bytes))
         return NULL;
+#else
+        bytes = PyUnicode_AsEncodedString(self->path, Py_FileSystemDefaultEncoding, "strict");
+#endif
     path = PyBytes_AS_STRING(bytes);
 
     if (follow_symlinks)

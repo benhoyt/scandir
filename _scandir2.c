@@ -29,14 +29,18 @@ comment):
 /* SECTION: Python 2/3 compatibility */
 
 #if PY_MAJOR_VERSION >= 3
-#define INITERROR return NULL
+
+#define INIT_ERROR return NULL
+
 #else
-#define INITERROR return
+
+#define INIT_ERROR return
 #define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
 #define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
 #define PyExc_FileNotFoundError PyExc_OSError
 #define PyUnicode_AsUnicodeAndSize(unicode, addr_length) \
     PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
+
 #endif
 
 
@@ -89,6 +93,8 @@ struct _Py_stat_struct {
 #       define FSTAT fstat
 #       define STRUCT_STAT struct stat
 #endif
+
+#ifdef MS_WINDOWS
 
 static __int64 secs_between_epochs = 11644473600; /* Seconds between 1.1.1601 and 1.1.1970 */
 
@@ -350,6 +356,8 @@ win32_stat_w(const wchar_t* path, struct _Py_stat_struct *result)
     return win32_xstat_w(path, result, TRUE);
 }
 
+#endif /* MS_WINDOWS */
+
 static PyTypeObject StatResultType;
 
 static PyObject *billion = NULL;
@@ -429,8 +437,10 @@ exit:
     Py_XDECREF(float_s);
 }
 
+#ifdef MS_WINDOWS
 #define HAVE_STAT_NSEC 1
 #define HAVE_STRUCT_STAT_ST_FILE_ATTRIBUTES 1
+#endif
 
 #ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
 #define ST_BLKSIZE_IDX 16
@@ -1677,12 +1687,12 @@ init_scandir2(void)
     PyObject *module = Py_InitModule("_scandir2", scandir_methods);
 #endif
     if (module == NULL) {
-        INITERROR;
+        INIT_ERROR;
     }
 
     billion = PyLong_FromLong(1000000000);
     if (!billion)
-        INITERROR;
+        INIT_ERROR;
 
     stat_result_desc.name = "scandir.stat_result";
     stat_result_desc.fields[7].name = PyStructSequence_UnnamedField;
@@ -1693,9 +1703,9 @@ init_scandir2(void)
     StatResultType.tp_new = statresult_new;
 
     if (PyType_Ready(&ScandirIteratorType) < 0)
-        INITERROR;
+        INIT_ERROR;
     if (PyType_Ready(&DirEntryType) < 0)
-        INITERROR;
+        INIT_ERROR;
 
 #if PY_MAJOR_VERSION >= 3
     return module;

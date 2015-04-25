@@ -1240,7 +1240,11 @@ DirEntry_inode(DirEntry *self)
 static PyObject *
 DirEntry_repr(DirEntry *self)
 {
+#if PY_MAJOR_VERSION >= 3
     return PyUnicode_FromFormat("<DirEntry %R>", self->name);
+#else
+    return PyString_FromFormat("<DirEntry object at %p>", self);
+#endif
 }
 
 static PyMemberDef DirEntry_members[] = {

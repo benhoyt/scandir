@@ -46,6 +46,11 @@ comment):
 
 /* SECTION: Helper utilities from posixmodule.c, fileutils.h, etc */
 
+/* May need a better way of determining this */
+#ifndef MS_WINDOWS
+#define HAVE_DIRENT_D_TYPE 1
+#endif
+
 #ifdef HAVE_DIRENT_H
 #include <dirent.h>
 #define NAMLEN(dirent) strlen((dirent)->d_name)

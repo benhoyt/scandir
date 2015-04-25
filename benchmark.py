@@ -38,7 +38,8 @@ def os_walk_pre_35(top, topdown=True, onerror=None, followlinks=False):
     for name in dirs:
         new_path = join(top, name)
         if followlinks or not islink(new_path):
-            yield from os_walk_pre_35(new_path, topdown, onerror, followlinks)
+            for x in os_walk_pre_35(new_path, topdown, onerror, followlinks):
+                yield x
     if not topdown:
         yield top, dirs, nondirs
 

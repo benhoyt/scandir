@@ -21,9 +21,12 @@ import os
 import sys
 
 try:
-    import _scandir
+    import _scandir2 as _scandir
 except ImportError:
-    _scandir = None
+    try:
+        import _scandir
+    except ImportError:
+        _scandir = None
 
 try:
     import ctypes
@@ -349,7 +352,7 @@ if sys.platform == 'win32':
                 if not FindClose(handle):
                     raise win_error(ctypes.GetLastError(), path)
 
-    if _scandir is not None:
+    if _scandir is not None and hasattr(_scandir, 'scandir_helper'):
         scandir_helper = _scandir.scandir_helper
 
         class Win32DirEntryC(object):
@@ -419,6 +422,10 @@ if sys.platform == 'win32':
             else:
                 for name, stat in scandir_helper(path):
                     yield Win32DirEntryC(path, name, stat)
+
+    elif _scandir is not None:
+        # From temporary _scandir2.c module
+        scandir_c = _scandir.scandir
 
     if _scandir is not None:
         scandir = scandir_c

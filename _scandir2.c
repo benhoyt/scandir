@@ -30,20 +30,27 @@ comment):
 
 #if PY_MAJOR_VERSION >= 3
 #define INITERROR return NULL
-#define FROM_LONG PyLong_FromLong
-#define BYTES_LENGTH PyBytes_GET_SIZE
-#define TO_CHAR PyBytes_AS_STRING
-#define UNICODE_AND_SIZE(u, w, s) w = PyUnicode_AsUnicodeAndSize(u, &s)
 #else
 #define INITERROR return
-#define FROM_LONG PyInt_FromLong
-#define BYTES_LENGTH PyString_GET_SIZE
-#define TO_CHAR PyString_AS_STRING
-#define UNICODE_AND_SIZE(u, w, s) w = PyUnicode_AsUnicode(u); s = PyUnicode_GetSize(u);
+#define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
+#define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
+#define PyExc_FileNotFoundError PyExc_OSError
+#define PyUnicode_AsUnicodeAndSize(unicode, addr_length) \
+    PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
 #endif
 
 
 /* SECTION: Helper utilities from posixmodule.c, fileutils.h, etc */
+
+#ifndef Py_CLEANUP_SUPPORTED
+#define Py_CLEANUP_SUPPORTED 0x20000
+#endif
+
+#ifndef S_IFLNK
+/* Windows doesn't define S_IFLNK but posixmodule.c maps
+ * IO_REPARSE_TAG_SYMLINK to S_IFLNK */
+#  define S_IFLNK 0120000
+#endif
 
 #ifdef MS_WINDOWS
 struct _Py_stat_struct {
@@ -377,7 +384,11 @@ static int _stat_float_times = 1;
 static void
 fill_time(PyObject *v, int index, time_t sec, unsigned long nsec)
 {
-    PyObject *s = _PyLong_FromTime_t(sec);
+#if SIZEOF_TIME_T > SIZEOF_LONG
+    PyObject *s = PyLong_FromLongLong((PY_LONG_LONG)sec);
+#else
+    PyObject *s = PyInt_FromLong((long)sec);
+#endif
     PyObject *ns_fractional = PyLong_FromUnsignedLong(nsec);
     PyObject *s_in_ns = NULL;
     PyObject *ns_total = NULL;
@@ -772,8 +783,16 @@ path_converter(PyObject *o, void *p) {
     }
     else {
         PyErr_Clear();
-        if (PyObject_CheckBuffer(o))
+#if PY_MAJOR_VERSION >= 3
+        if (PyObject_CheckBuffer(o)) {
             bytes = PyBytes_FromObject(o);
+        }
+#else
+        if (PyString_Check(o)) {
+            bytes = o;
+            Py_INCREF(bytes);
+        }
+#endif
         else
             bytes = NULL;
         if (!bytes) {
@@ -1264,7 +1283,7 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     entry->lstat = NULL;
     entry->got_file_index = 0;
 
-    entry->name = PyUnicode_FromWideChar(dataW->cFileName, -1);
+    entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
     if (!entry->name)
         goto error;
 
@@ -1272,7 +1291,7 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     if (!joined_path)
         goto error;
 
-    entry->path = PyUnicode_FromWideChar(joined_path, -1);
+    entry->path = PyUnicode_FromWideChar(joined_path, wcslen(joined_path));
     PyMem_Free(joined_path);
     if (!entry->path)
         goto error;
@@ -1653,9 +1672,9 @@ PyInit__scandir2(void)
     PyObject *module = PyModule_Create(&moduledef);
 #else
 void
-init_scandir(void)
+init_scandir2(void)
 {
-    PyObject *module = Py_InitModule("_scandir", scandir_methods);
+    PyObject *module = Py_InitModule("_scandir2", scandir_methods);
 #endif
     if (module == NULL) {
         INITERROR;
@@ -1665,12 +1684,11 @@ init_scandir(void)
     if (!billion)
         INITERROR;
 
-    stat_result_desc.name = "os.stat_result"; /* see issue #19209 */
+    stat_result_desc.name = "scandir.stat_result";
     stat_result_desc.fields[7].name = PyStructSequence_UnnamedField;
     stat_result_desc.fields[8].name = PyStructSequence_UnnamedField;
     stat_result_desc.fields[9].name = PyStructSequence_UnnamedField;
-    if (PyStructSequence_InitType2(&StatResultType, &stat_result_desc) < 0)
-        INITERROR;
+    PyStructSequence_InitType(&StatResultType, &stat_result_desc);
     structseq_new = StatResultType.tp_new;
     StatResultType.tp_new = statresult_new;
 

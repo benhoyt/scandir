@@ -596,7 +596,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 if closedir(dir_p):
                     raise posix_error(path)
 
-    if _scandir is not None:
+    if _scandir is not None and hasattr(_scandir, 'scandir_helper'):
         scandir_helper = _scandir.scandir_helper
 
         def scandir_c(path=u'.'):
@@ -605,6 +605,10 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 if not is_bytes:
                     name = name.decode(file_system_encoding)
                 yield PosixDirEntry(path, name, d_type)
+
+    elif _scandir is not None:
+        # From temporary _scandir2.c module
+        scandir_c = _scandir.scandir
 
     if _scandir is not None:
         scandir = scandir_c

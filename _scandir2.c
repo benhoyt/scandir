@@ -1436,8 +1436,15 @@ DirEntry_from_posix_info(path_t *path, char *name, Py_ssize_t name_len,
         goto error;
 
     if (!path->narrow || !PyBytes_Check(path->object)) {
+#if PY_MAJOR_VERSION >= 3
         entry->name = PyUnicode_DecodeFSDefaultAndSize(name, name_len);
         entry->path = PyUnicode_DecodeFSDefault(joined_path);
+#else
+        entry->name = PyUnicode_Decode(name, name_len,
+                                       Py_FileSystemDefaultEncoding, "strict");
+        entry->path = PyUnicode_Decode(joined_path, strlen(joined_path),
+                                       Py_FileSystemDefaultEncoding, "strict");
+#endif
     }
     else {
         entry->name = PyBytes_FromStringAndSize(name, name_len);

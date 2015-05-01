@@ -938,6 +938,11 @@ PyDoc_STRVAR(posix_scandir__doc__,
 "scandir(path='.') -> iterator of DirEntry objects for given path");
 
 static char *follow_symlinks_keywords[] = {"follow_symlinks", NULL};
+#if PY_MAJOR_VERSION >= 3
+static char *follow_symlinks_format = "|$p:DirEntry.stat";
+#else
+static char *follow_symlinks_format = "|i:DirEntry.stat";
+#endif
 
 typedef struct {
     PyObject_HEAD
@@ -1086,7 +1091,7 @@ DirEntry_stat(DirEntry *self, PyObject *args, PyObject *kwargs)
 {
     int follow_symlinks = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.stat",
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, follow_symlinks_format,
                                      follow_symlinks_keywords, &follow_symlinks))
         return NULL;
 
@@ -1188,7 +1193,7 @@ DirEntry_is_dir(DirEntry *self, PyObject *args, PyObject *kwargs)
 {
     int follow_symlinks = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_dir",
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, follow_symlinks_format,
                                      follow_symlinks_keywords, &follow_symlinks))
         return NULL;
 
@@ -1200,7 +1205,7 @@ DirEntry_is_file(DirEntry *self, PyObject *args, PyObject *kwargs)
 {
     int follow_symlinks = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:DirEntry.is_file",
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, follow_symlinks_format,
                                      follow_symlinks_keywords, &follow_symlinks))
         return NULL;
 
@@ -1243,7 +1248,15 @@ DirEntry_repr(DirEntry *self)
 #if PY_MAJOR_VERSION >= 3
     return PyUnicode_FromFormat("<DirEntry %R>", self->name);
 #else
-    return PyString_FromFormat("<DirEntry object at %p>", self);
+    PyObject *name_repr;
+    PyObject *entry_repr;
+
+    name_repr = PyObject_Repr(self->name);
+    if (!name_repr)
+        return NULL;
+    entry_repr = PyString_FromFormat("<DirEntry %s>", PyString_AsString(name_repr));
+    Py_DECREF(name_repr);
+    return entry_repr;
 #endif
 }
 

@@ -247,8 +247,6 @@ class TestMixin(object):
         self.assertEqual(entry.name, 'file1.txt')
         self.assertEqual(entry.path, os.path.join(path, 'file1.txt'))
 
-    # TODO ben: add tests for file not found is_dir/is_file/stat
-
 
 if has_scandir:
     class TestScandirGeneric(TestMixin, unittest.TestCase):

@@ -9,7 +9,6 @@ See README.md or https://github.com/benhoyt/scandir for rationale and docs.
 scandir is released under the new BSD 3-clause license. See LICENSE.txt for
 the full license text.
 
-TODO: add inode() to Generic and Python DirEntry definitions below
 TODO: fix scandir.walk() to use Python 3.5 behaviour
 TODO: update docs, readme, etc
 TODO: remove old and posixmodule stuff
@@ -122,6 +121,10 @@ class GenericDirEntry(object):
             return False  # Path doesn't exist or is a broken symlink
         return st.st_mode & 0o170000 == S_IFLNK
 
+    def inode(self):
+        st = self.stat(follow_symlinks=False)
+        return st.st_ino
+
     def __str__(self):
         return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
 
@@ -230,7 +233,7 @@ if sys.platform == 'win32':
                                    attributes)
 
         class Win32DirEntryPython(object):
-            __slots__ = ('name', '_stat', '_lstat', '_find_data', '_scandir_path', '_path')
+            __slots__ = ('name', '_stat', '_lstat', '_find_data', '_scandir_path', '_path', '_inode')
 
             def __init__(self, scandir_path, name, find_data):
                 self._scandir_path = scandir_path
@@ -239,6 +242,7 @@ if sys.platform == 'win32':
                 self._lstat = None
                 self._find_data = find_data
                 self._path = None
+                self._inode = None
 
             @property
             def path(self):
@@ -299,6 +303,11 @@ if sys.platform == 'win32':
                 return (self._find_data.dwFileAttributes &
                             FILE_ATTRIBUTE_REPARSE_POINT != 0 and
                         self._find_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK)
+
+            def inode(self):
+                if self._inode is None:
+                    self._inode = lstat(self.path).st_ino
+                return self._inode
 
             def __str__(self):
                 return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
@@ -416,12 +425,13 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         file_system_encoding = sys.getfilesystemencoding()
 
         class PosixDirEntry(object):
-            __slots__ = ('name', '_d_type', '_stat', '_lstat', '_scandir_path', '_path')
+            __slots__ = ('name', '_d_type', '_stat', '_lstat', '_scandir_path', '_path', '_inode')
 
-            def __init__(self, scandir_path, name, d_type):
+            def __init__(self, scandir_path, name, d_type, inode):
                 self._scandir_path = scandir_path
                 self.name = name
                 self._d_type = d_type
+                self._inode = inode
                 self._stat = None
                 self._lstat = None
                 self._path = None
@@ -485,6 +495,9 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 else:
                     return self._d_type == DT_LNK
 
+            def inode(self):
+                return self._inode
+
             def __str__(self):
                 return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
 
@@ -521,7 +534,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                     if name not in (b'.', b'..'):
                         if not is_bytes:
                             name = name.decode(file_system_encoding)
-                        yield PosixDirEntry(path, name, entry.d_type)
+                        yield PosixDirEntry(path, name, entry.d_type, entry.d_ino)
             finally:
                 if closedir(dir_p):
                     raise posix_error(path)

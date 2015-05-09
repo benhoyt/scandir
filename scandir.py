@@ -8,6 +8,12 @@ See README.md or https://github.com/benhoyt/scandir for rationale and docs.
 
 scandir is released under the new BSD 3-clause license. See LICENSE.txt for
 the full license text.
+
+TODO: what to do about bytes in Windows in Python 2.x
+TODO: ensure tests are fixed
+TODO: add inode() to Generic and Python DirEntry definitions below
+TODO: fix scandir.walk() to use Python 3.5 behaviour
+TODO: update docs, readme, etc
 """
 
 from __future__ import division
@@ -21,12 +27,9 @@ import os
 import sys
 
 try:
-    import _scandir2 as _scandir
+    import _scandir
 except ImportError:
-    try:
-        import _scandir
-    except ImportError:
-        _scandir = None
+    _scandir = None
 
 try:
     import ctypes
@@ -352,79 +355,7 @@ if sys.platform == 'win32':
                 if not FindClose(handle):
                     raise win_error(ctypes.GetLastError(), path)
 
-    if _scandir is not None and hasattr(_scandir, 'scandir_helper'):
-        scandir_helper = _scandir.scandir_helper
-
-        class Win32DirEntryC(object):
-            __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
-
-            def __init__(self, scandir_path, name, lstat):
-                self._scandir_path = scandir_path
-                self.name = name
-                self._stat = None
-                self._lstat = lstat
-                self._path = None
-
-            @property
-            def path(self):
-                if self._path is None:
-                    self._path = join(self._scandir_path, self.name)
-                return self._path
-
-            def stat(self, follow_symlinks=True):
-                if follow_symlinks:
-                    if self._stat is None:
-                        if self.is_symlink():
-                            self._stat = stat(self.path)
-                        else:
-                            self._stat = self._lstat
-                    return self._stat
-                else:
-                    return self._lstat
-
-            def is_dir(self, follow_symlinks=True):
-                if follow_symlinks and self.is_symlink():
-                    try:
-                        st = self.stat()
-                    except OSError as e:
-                        if e.errno != ENOENT:
-                            raise
-                        return False
-                else:
-                    st = self._lstat
-                return st.st_mode & 0o170000 == S_IFDIR
-
-            def is_file(self, follow_symlinks=True):
-                if follow_symlinks and self.is_symlink():
-                    try:
-                        st = self.stat()
-                    except OSError as e:
-                        if e.errno != ENOENT:
-                            raise
-                        return False
-                else:
-                    st = self._lstat
-                return st.st_mode & 0o170000 == S_IFREG
-
-            def is_symlink(self):
-                return self._lstat.st_mode & 0o170000 == S_IFLNK
-
-            def __str__(self):
-                return '<{0}: {1!r}>'.format(self.__class__.__name__, self.name)
-
-            __repr__ = __str__
-
-        def scandir_c(path=u'.'):
-            if isinstance(path, bytes):
-                for name, stat in scandir_helper(path.decode('mbcs', 'replace')):
-                    name = name.encode('mbcs', 'replace')
-                    yield Win32DirEntryC(path, name, stat)
-            else:
-                for name, stat in scandir_helper(path):
-                    yield Win32DirEntryC(path, name, stat)
-
-    elif _scandir is not None:
-        # From temporary _scandir2.c module
+    if _scandir is not None:
         scandir_c = _scandir.scandir
 
     if _scandir is not None:
@@ -596,18 +527,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                 if closedir(dir_p):
                     raise posix_error(path)
 
-    if _scandir is not None and hasattr(_scandir, 'scandir_helper'):
-        scandir_helper = _scandir.scandir_helper
-
-        def scandir_c(path=u'.'):
-            is_bytes = isinstance(path, bytes)
-            for name, d_type in scandir_helper(path):
-                if not is_bytes:
-                    name = name.decode(file_system_encoding)
-                yield PosixDirEntry(path, name, d_type)
-
-    elif _scandir is not None:
-        # From temporary _scandir2.c module
+    if _scandir is not None:
         scandir_c = _scandir.scandir
 
     if _scandir is not None:

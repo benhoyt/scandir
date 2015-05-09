@@ -9,9 +9,6 @@ comment):
    Python 3.5's posixmodule.c
 4) Module and method definitions and initialization code
 
-TODO: ensure it compiles on Python 3.5 (though we shouldn't need it there!)
-      currently breaks with: '_Py_stat_struct' : 'struct' type redefinition
-
 */
 
 #include <Python.h>
@@ -86,6 +83,8 @@ TODO: ensure it compiles on Python 3.5 (though we shouldn't need it there!)
 #  define S_IFLNK 0120000
 #endif
 
+// _Py_stat_struct is already defined in fileutils.h on Python 3.5+
+#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 5)
 #ifdef MS_WINDOWS
 struct _Py_stat_struct {
     unsigned long st_dev;
@@ -106,6 +105,7 @@ struct _Py_stat_struct {
 };
 #else
 #  define _Py_stat_struct stat
+#endif
 #endif
 
 /* choose the appropriate stat and fstat functions and return structs */

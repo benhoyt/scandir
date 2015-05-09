@@ -9,6 +9,9 @@ comment):
    Python 3.5's posixmodule.c
 4) Module and method definitions and initialization code
 
+TODO: ensure it compiles on Python 3.5 (though we shouldn't need it there!)
+      currently breaks with: '_Py_stat_struct' : 'struct' type redefinition
+
 */
 
 #include <Python.h>
@@ -1035,7 +1038,14 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     if (!PyUnicode_FSConverter(self->path, &bytes))
         return NULL;
 #else
+    if (PyString_Check(self->path)) {
+        bytes = self->path;
+        Py_INCREF(bytes);
+    } else {
         bytes = PyUnicode_AsEncodedString(self->path, Py_FileSystemDefaultEncoding, "strict");
+        if (!bytes)
+            return NULL;
+    }
 #endif
     path = PyBytes_AS_STRING(bytes);
 

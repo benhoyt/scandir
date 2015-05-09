@@ -9,11 +9,10 @@ See README.md or https://github.com/benhoyt/scandir for rationale and docs.
 scandir is released under the new BSD 3-clause license. See LICENSE.txt for
 the full license text.
 
-TODO: what to do about bytes in Windows in Python 2.x
-TODO: ensure tests are fixed
 TODO: add inode() to Generic and Python DirEntry definitions below
 TODO: fix scandir.walk() to use Python 3.5 behaviour
 TODO: update docs, readme, etc
+TODO: remove old and posixmodule stuff
 """
 
 from __future__ import division

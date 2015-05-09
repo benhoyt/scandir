@@ -200,6 +200,9 @@ class TestMixin(object):
                           ('linksubdir', True, True)])
 
     def test_bytes(self):
+        if sys.platform == 'win32':
+            return self.skipTest('bytes paths not tested on Windows')
+
         # Check that unicode filenames are returned correctly as bytes in output
         path = os.path.join(TEST_PATH, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, bytes))
@@ -255,7 +258,7 @@ if has_scandir:
             TestMixin.setUp(self)
 
 
-    if hasattr(scandir, 'scandir_python'):
+    if getattr(scandir, 'scandir_python', None):
         class TestScandirPython(TestMixin, unittest.TestCase):
             def setUp(self):
                 self.scandir_func = scandir.scandir_python
@@ -263,7 +266,7 @@ if has_scandir:
                 TestMixin.setUp(self)
 
 
-    if hasattr(scandir, 'scandir_c'):
+    if getattr(scandir, 'scandir_c', None):
         class TestScandirC(TestMixin, unittest.TestCase):
             def setUp(self):
                 self.scandir_func = scandir.scandir_c

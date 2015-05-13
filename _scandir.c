@@ -957,6 +957,9 @@ typedef struct {
     struct _Py_stat_struct win32_lstat;
     __int64 win32_file_index;
     int got_file_index;
+#if PY_MAJOR_VERSION < 3
+    int name_path_bytes;
+#endif
 #else /* POSIX */
 #ifdef HAVE_DIRENT_D_TYPE
     unsigned char d_type;
@@ -1252,11 +1255,68 @@ DirEntry_inode(DirEntry *self)
 #endif
 }
 
+#if PY_MAJOR_VERSION < 3 && defined(MS_WINDOWS)
+
+PyObject *DirEntry_name_getter(DirEntry *self, void *closure) {
+    if (self->name_path_bytes) {
+        return PyUnicode_EncodeMBCS(PyUnicode_AS_UNICODE(self->name),
+                                    PyUnicode_GetSize(self->name), "strict");
+    } else {
+        Py_INCREF(self->name);
+        return self->name;
+    }
+}
+
+PyObject *DirEntry_path_getter(DirEntry *self, void *closure) {
+    if (self->name_path_bytes) {
+        return PyUnicode_EncodeMBCS(PyUnicode_AS_UNICODE(self->path),
+                                    PyUnicode_GetSize(self->path), "strict");
+    } else {
+        Py_INCREF(self->path);
+        return self->path;
+    }
+}
+
+static PyGetSetDef DirEntry_getset[] = {
+    {"name", (getter)DirEntry_name_getter, NULL,
+     "the entry's base filename, relative to scandir() \"path\" argument", NULL},
+    {"path", (getter)DirEntry_path_getter, NULL,
+     "the entry's full path name; equivalent to os.path.join(scandir_path, entry.name)", NULL},
+    {NULL}
+};
+
+#else
+
+static PyMemberDef DirEntry_members[] = {
+    {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
+     "the entry's base filename, relative to scandir() \"path\" argument"},
+    {"path", T_OBJECT_EX, offsetof(DirEntry, path), READONLY,
+     "the entry's full path name; equivalent to os.path.join(scandir_path, entry.name)"},
+    {NULL}
+};
+
+#endif
+
 static PyObject *
 DirEntry_repr(DirEntry *self)
 {
 #if PY_MAJOR_VERSION >= 3
     return PyUnicode_FromFormat("<DirEntry %R>", self->name);
+#elif defined(MS_WINDOWS)
+    PyObject *name;
+    PyObject *name_repr;
+    PyObject *entry_repr;
+
+    name = DirEntry_name_getter(self, NULL);
+    if (!name)
+        return NULL;
+    name_repr = PyObject_Repr(name);
+    Py_DECREF(name);
+    if (!name_repr)
+        return NULL;
+    entry_repr = PyString_FromFormat("<DirEntry %s>", PyString_AsString(name_repr));
+    Py_DECREF(name_repr);
+    return entry_repr;
 #else
     PyObject *name_repr;
     PyObject *entry_repr;
@@ -1269,14 +1329,6 @@ DirEntry_repr(DirEntry *self)
     return entry_repr;
 #endif
 }
-
-static PyMemberDef DirEntry_members[] = {
-    {"name", T_OBJECT_EX, offsetof(DirEntry, name), READONLY,
-     "the entry's base filename, relative to scandir() \"path\" argument"},
-    {"path", T_OBJECT_EX, offsetof(DirEntry, path), READONLY,
-     "the entry's full path name; equivalent to os.path.join(scandir_path, entry.name)"},
-    {NULL}
-};
 
 static PyMethodDef DirEntry_methods[] = {
     {"is_dir", (PyCFunction)DirEntry_is_dir, METH_VARARGS | METH_KEYWORDS,
@@ -1327,7 +1379,13 @@ static PyTypeObject DirEntryType = {
     0,                                      /* tp_iter */
     0,                                      /* tp_iternext */
     DirEntry_methods,                       /* tp_methods */
+#if PY_MAJOR_VERSION < 3 && defined(MS_WINDOWS)
+    NULL,                                   /* tp_members */
+    DirEntry_getset,                        /* tp_getset */
+#else
     DirEntry_members,                       /* tp_members */
+    NULL,                                   /* tp_getset */
+#endif
 };
 
 #ifdef MS_WINDOWS
@@ -1381,6 +1439,9 @@ DirEntry_from_find_data(path_t *path, WIN32_FIND_DATAW *dataW)
     entry->stat = NULL;
     entry->lstat = NULL;
     entry->got_file_index = 0;
+#if PY_MAJOR_VERSION < 3
+    entry->name_path_bytes = path->object && PyBytes_Check(path->object);
+#endif
 
     entry->name = PyUnicode_FromWideChar(dataW->cFileName, wcslen(dataW->cFileName));
     if (!entry->name)

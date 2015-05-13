@@ -131,12 +131,22 @@ class GenericDirEntry(object):
     __repr__ = __str__
 
 
-def scandir_generic(path=u'.'):
+def _scandir_generic(path=u'.'):
     """Like os.listdir(), but yield DirEntry objects instead of returning
     a list of names.
     """
     for name in listdir(path):
         yield GenericDirEntry(path, name)
+
+
+if IS_PY3 and sys.platform == 'win32':
+    def scandir_generic(path=u'.'):
+        if isinstance(path, bytes):
+            raise TypeError("os.scandir() doesn't support bytes path on Windows, use Unicode instead")
+        return _scandir_generic(path)
+    scandir_generic.__doc__ = _scandir_generic.__doc__
+else:
+    scandir_generic = _scandir_generic
 
 
 scandir_c = None
@@ -319,7 +329,7 @@ if sys.platform == 'win32':
             exc.filename = filename
             return exc
 
-        def scandir_python(path=u'.'):
+        def _scandir_python(path=u'.'):
             """Like os.listdir(), but yield DirEntry objects instead of returning
             a list of names.
             """
@@ -362,6 +372,15 @@ if sys.platform == 'win32':
             finally:
                 if not FindClose(handle):
                     raise win_error(ctypes.GetLastError(), path)
+
+        if IS_PY3:
+            def scandir_python(path=u'.'):
+                if isinstance(path, bytes):
+                    raise TypeError("os.scandir() doesn't support bytes path on Windows, use Unicode instead")
+                return _scandir_python(path)
+            scandir_python.__doc__ = _scandir_python.__doc__
+        else:
+            scandir_python = _scandir_python
 
     if _scandir is not None:
         scandir_c = _scandir.scandir

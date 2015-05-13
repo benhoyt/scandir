@@ -200,12 +200,13 @@ class TestMixin(object):
                           ('linksubdir', True, True)])
 
     def test_bytes(self):
-        if sys.platform == 'win32':
-            return self.skipTest('bytes paths not tested on Windows')
-
         # Check that unicode filenames are returned correctly as bytes in output
         path = os.path.join(TEST_PATH, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, bytes))
+        if IS_PY3:
+            self.assertRaises(TypeError, self.scandir_func, path)
+            return
+
         entries = [e for e in self.scandir_func(path) if e.name.startswith(b'unicod')]
         self.assertEqual(len(entries), 1)
         entry = entries[0]

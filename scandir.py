@@ -9,7 +9,6 @@ See README.md or https://github.com/benhoyt/scandir for rationale and docs.
 scandir is released under the new BSD 3-clause license. See LICENSE.txt for
 the full license text.
 
-TODO: fix scandir.walk() to use Python 3.5 behaviour
 TODO: update docs, readme, etc
 TODO: remove old and posixmodule stuff
 """
@@ -18,7 +17,7 @@ from __future__ import division
 
 from errno import ENOENT
 from os import listdir, lstat, stat, strerror
-from os.path import join
+from os.path import join, islink
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import collections
 import os
@@ -575,44 +574,80 @@ else:
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
-    """Like os.walk(), but faster, as it uses scandir() internally."""
-    # Determine which are files and which are directories
+    """Like Python 3.5's implementation of os.walk() -- faster than
+    the pre-Python 3.5 version as it uses scandir() internally.
+    """
     dirs = []
     nondirs = []
-    symlinks = set()
+
+    # We may not have read permission for top, in which case we can't
+    # get a list of the files the directory contains.  os.walk
+    # always suppressed the exception then, rather than blow up for a
+    # minor reason when (say) a thousand readable directories are still
+    # left to visit.  That logic is copied here.
     try:
-        for entry in scandir(top):
-            try:
-                if entry.is_dir():
-                    dirs.append(entry.name)
-                else:
-                    nondirs.append(entry.name)
-            except OSError:
-                # Need this to emulate os.walk(), which uses
-                # os.path.isdir(), and that returns False (nondir) on
-                # any OSError; same with entry.is_symlink() below
-                nondirs.append(entry.name)
-            try:
-                if entry.is_symlink():
-                    symlinks.add(entry.name)
-            except OSError:
-                pass
+        scandir_it = scandir(top)
     except OSError as error:
         if onerror is not None:
             onerror(error)
         return
 
+    while True:
+        try:
+            try:
+                entry = next(scandir_it)
+            except StopIteration:
+                break
+        except OSError as error:
+            if onerror is not None:
+                onerror(error)
+            return
+
+        try:
+            is_dir = entry.is_dir()
+        except OSError:
+            # If is_dir() raises an OSError, consider that the entry is not
+            # a directory, same behaviour than os.path.isdir().
+            is_dir = False
+
+        if is_dir:
+            dirs.append(entry.name)
+        else:
+            nondirs.append(entry.name)
+
+        if not topdown and is_dir:
+            # Bottom-up: recurse into sub-directory, but exclude symlinks to
+            # directories if followlinks is False
+            if followlinks:
+                walk_into = True
+            else:
+                try:
+                    is_symlink = entry.is_symlink()
+                except OSError:
+                    # If is_symlink() raises an OSError, consider that the
+                    # entry is not a symbolic link, same behaviour than
+                    # os.path.islink().
+                    is_symlink = False
+                walk_into = not is_symlink
+
+            if walk_into:
+                for entry in walk(entry.path, topdown, onerror, followlinks):
+                    yield entry
+
     # Yield before recursion if going top down
     if topdown:
         yield top, dirs, nondirs
 
-    # Recurse into sub-directories, following symbolic links if "followlinks"
-    for name in dirs:
-        if followlinks or name not in symlinks:
+        # Recurse into sub-directories
+        for name in dirs:
             new_path = join(top, name)
-            for x in walk(new_path, topdown, onerror, followlinks):
-                yield x
-
-    # Yield after recursion if going bottom up
-    if not topdown:
+            # Issue #23605: os.path.islink() is used instead of caching
+            # entry.is_symlink() result during the loop on os.scandir() because
+            # the caller can replace the directory entry during the "yield"
+            # above.
+            if followlinks or not islink(new_path):
+                for entry in walk(new_path, topdown, onerror, followlinks):
+                    yield entry
+    else:
+        # Yield after recursion if going bottom up
         yield top, dirs, nondirs

@@ -72,7 +72,7 @@ arguments::
     -----------------------------------------------------
     Windows 7 64-bit        2.7.7 64-bit    10.4
     Windows 7 64-bit SSD    2.7.7 64-bit    10.3
-    Windows 7 64-bit NFS    2.7.6 64-bit    TODO
+    Windows 7 64-bit NFS    2.7.6 64-bit    36.8
     Windows 7 64-bit SSD    3.4.1 64-bit    9.9
     Windows 7 64-bit SSD    3.5.0 64-bit    9.5
 

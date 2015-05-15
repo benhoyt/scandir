@@ -713,37 +713,6 @@ static PyStructSequence_Desc stat_result_desc = {
 };
 
 
-static int
-_fd_converter(PyObject *o, int *p, const char *allowed)
-{
-    int overflow;
-    long long_value;
-
-    PyObject *index = PyNumber_Index(o);
-    if (index == NULL) {
-        PyErr_Format(PyExc_TypeError,
-                     "argument should be %s, not %.200s",
-                     allowed, Py_TYPE(o)->tp_name);
-        return 0;
-    }
-
-    long_value = PyLong_AsLongAndOverflow(index, &overflow);
-    Py_DECREF(index);
-    if (overflow > 0 || long_value > INT_MAX) {
-        PyErr_SetString(PyExc_OverflowError,
-                        "fd is greater than maximum");
-        return 0;
-    }
-    if (overflow < 0 || long_value < INT_MIN) {
-        PyErr_SetString(PyExc_OverflowError,
-                        "fd is less than minimum");
-        return 0;
-    }
-
-    *p = (int)long_value;
-    return 1;
-}
-
 #ifdef MS_WINDOWS
 static int
 win32_warn_bytes_api()
@@ -759,7 +728,6 @@ typedef struct {
     const char *function_name;
     const char *argument_name;
     int nullable;
-    int allow_fd;
     wchar_t *wide;
     char *narrow;
     int fd;
@@ -767,9 +735,6 @@ typedef struct {
     PyObject *object;
     PyObject *cleanup;
 } path_t;
-
-#define PATH_T_INITIALIZE(function_name, argument_name, nullable, allow_fd) \
-    {function_name, argument_name, nullable, allow_fd, NULL, NULL, -1, 0, NULL, NULL}
 
 static void
 path_cleanup(path_t *path) {
@@ -868,19 +833,6 @@ path_converter(PyObject *o, void *p) {
             bytes = NULL;
         if (!bytes) {
             PyErr_Clear();
-            if (path->allow_fd) {
-                int fd;
-                int result = _fd_converter(o, &fd,
-                        "string, bytes or integer");
-                if (result) {
-                    path->wide = NULL;
-                    path->narrow = NULL;
-                    path->length = 0;
-                    path->object = o;
-                    path->fd = fd;
-                    return result;
-                }
-            }
         }
     }
 

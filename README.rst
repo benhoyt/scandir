@@ -1,22 +1,22 @@
 scandir, a better directory iterator and faster os.walk()
 =========================================================
 
-`scandir()` is a directory iteration function like `os.listdir()`,
+``scandir()`` is a directory iteration function like ``os.listdir()``,
 except that instead of returning a list of bare filenames, it yields
-`DirEntry` objects that include file type and stat information along
-with the name. Using `scandir()` increases the speed of `os.walk()`
+``DirEntry`` objects that include file type and stat information along
+with the name. Using ``scandir()`` increases the speed of ``os.walk()``
 by 2-20 times (depending on the platform and file system) by avoiding
-unnecessary calls to `os.stat()` in most cases.
+unnecessary calls to ``os.stat()`` in most cases.
 
 
 Now included in a Python near you!
 ----------------------------------
 
-`scandir` has been included in the Python 3.5 standard library as
-`os.scandir()`, and the related performance improvements to
-`os.walk()` have also been included. So if you're lucky enough to be
+``scandir`` has been included in the Python 3.5 standard library as
+``os.scandir()``, and the related performance improvements to
+``os.walk()`` have also been included. So if you're lucky enough to be
 using Python 3.5 (release date September 13, 2015) you get the benefit
-immediately, otherwise just use this module (`pip install scandir`)
+immediately, otherwise just use this module (``pip install scandir``)
 and do something like this in your code::
 
     # Use the built-in version of scandir/walk if possible, otherwise
@@ -27,11 +27,11 @@ and do something like this in your code::
         from scandir import scandir, walk
 
 `PEP 471 <https://www.python.org/dev/peps/pep-0471/>`_, which is the
-PEP that proposes including `scandir` in the Python standard library,
+PEP that proposes including ``scandir`` in the Python standard library,
 was `accepted <https://mail.python.org/pipermail/python-dev/2014-July/135561.html>`_
 in July 2014 by Victor Stinner, the BDFL-delegate for the PEP.
 
-This `scandir` module is intended to work on Python 2.6+ and Python
+This ``scandir`` module is intended to work on Python 2.6+ and Python
 3.2+ (and it has been tested on those versions).
 
 
@@ -47,8 +47,8 @@ no further ``stat`` system calls are needed. In short, you can reduce the number
 of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
-**In practice, removing all those extra system calls makes ``os.walk()`` about
-7-50 times as fast on Windows, and about 3-10 times as fast on Linux and Mac OS
+In practice, removing all those extra system calls makes ``os.walk()`` about
+**7-50 times as fast on Windows, and about 3-10 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. See more benchmarks
 in the "Benchmarks" section below.
 

@@ -80,7 +80,7 @@ arguments::
     Ubuntu 14.04 64-bit     2.7.6 64-bit    5.8
 
 All of the above tests were done using the fast C version of scandir
-(source code in `_scandir.c`).
+(source code in ``_scandir.c``).
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why ``benchmark.py`` creates a test directory
@@ -99,7 +99,7 @@ The API for ``scandir.walk()`` is exactly the same as ``os.walk()``, so just
 scandir()
 ~~~~~~~~~
 
-The full docs for `scandir()` and the `DirEntry` objects it yields are
+The full docs for ``scandir()`` and the ``DirEntry`` objects it yields are
 available in the `Python documentation here <https://docs.python.org/3.5/library/os.html#os.scandir>`_. 
 But below is a brief summary as well.
 
@@ -171,7 +171,7 @@ Further reading
 * `The Python docs for scandir <https://docs.python.org/3.5/library/os.html#os.scandir>`_
 * `PEP 471 <https://www.python.org/dev/peps/pep-0471/>`_, the
   (now-accepted) Python Enhancement Proposal that proposed adding
-  `scandir` to the standard library -- a lot of details here,
+  ``scandir`` to the standard library -- a lot of details here,
   including rejected ideas and previous discussion
 
 

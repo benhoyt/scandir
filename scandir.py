@@ -15,8 +15,6 @@ more details on its inclusion into Python 3.5
 scandir is released under the new BSD 3-clause license. See
 LICENSE.txt for the full license text.
 
-TODO: update docs, readme, etc (point to PEP 471)
-TODO: remove old and posixmodule stuff
 TODO: make it work on Python 2.6 if easy enough
 TODO: release scandir version 1.0
 TODO: update benhoyt.com links

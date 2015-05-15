@@ -14,10 +14,6 @@ more details on its inclusion into Python 3.5
 
 scandir is released under the new BSD 3-clause license. See
 LICENSE.txt for the full license text.
-
-TODO: make it work on Python 2.6 if easy enough
-TODO: release scandir version 1.0
-TODO: update benhoyt.com links
 """
 
 from __future__ import division
@@ -45,7 +41,7 @@ if _scandir is None and ctypes is None:
     warnings.warn("scandir can't find the compiled _scandir C module "
                   "or ctypes, using slow generic fallback")
 
-__version__ = '0.9'
+__version__ = '1.0'
 __all__ = ['scandir', 'walk']
 
 # Windows FILE_ATTRIBUTE constants for interpreting the

@@ -70,15 +70,14 @@ arguments::
 
     System version          Python version  Times as fast
     -----------------------------------------------------
-    Windows 7 64-bit        2.7.7 64-bit    TODO
-    Windows 7 64-bit SSD    2.7.7 64-bit    23.2
+    Windows 7 64-bit        2.7.7 64-bit    10.4
+    Windows 7 64-bit SSD    2.7.7 64-bit    10.3
     Windows 7 64-bit NFS    2.7.6 64-bit    TODO
-    Windows 7 64-bit        3.4.1 64-bit    TODO
+    Windows 7 64-bit SSD    3.4.1 64-bit    9.9
+    Windows 7 64-bit SSD    3.5.0 64-bit    9.5
 
-    CentOS 6.5 64-bit       2.7.6 64-bit    TODO
-    Ubuntu 12.04 32-bit     2.7.3 32-bit    TODO
-
-    Mac OS X 10.9.3         2.7.5 64-bit    TODO
+    CentOS 6.2 64-bit       2.6.6 64-bit    3.9
+    Ubuntu 14.04 64-bit     2.7.6 64-bit    5.8
 
 All of the above tests were done using the fast C version of scandir
 (source code in `_scandir.c`).
@@ -86,14 +85,6 @@ All of the above tests were done using the fast C version of scandir
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why ``benchmark.py`` creates a test directory
 tree with a standardized size.
-
-TODO: update --
-Another quick benchmark I've done (on Windows 7 64-bit) is running Eli
-Bendersky's `pss <https://github.com/eliben/pss>`_ source code searching tool
-across a fairly large code tree (4938 files, 598 dirs, 200 MB). Using pss out
-of the box with ``os.walk()`` on a not-found string takes 0.91 seconds. But
-after monkey-patching in ``scandir.walk()`` it takes only 0.34 seconds -- 2.7
-times as fast.
 
 
 The API

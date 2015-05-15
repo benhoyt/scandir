@@ -30,7 +30,10 @@ setup(
                      "(such as type and stat information).\n"
                      "\n"
                      "This module also includes a version of os.walk() that uses scandir() "
-                     "to speed it up significantly.",
+                     "to speed it up significantly.\n"
+                     "\n"
+                     "NOTE: If you're using Python version 3.5+, os.scandir() and the speed "
+                     "improvements to os.walk() are already available in the standard library.",
     py_modules=['scandir'],
     ext_modules=[Extension('_scandir', ['_scandir.c'])],
     classifiers=[

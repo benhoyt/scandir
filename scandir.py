@@ -1,16 +1,25 @@
-"""scandir, a better directory iterator that exposes all file info OS provides
+"""scandir, a better directory iterator and faster os.walk(), now in the Python 3.5 stdlib
 
-scandir is a generator version of os.listdir() that returns an iterator over
-files in a directory, and also exposes the extra information most OSes provide
-while iterating files in a directory.
+scandir() is a generator version of os.listdir() that returns an
+iterator over files in a directory, and also exposes the extra
+information most OSes provide while iterating files in a directory
+(such as type and stat information).
 
-See README.md or https://github.com/benhoyt/scandir for rationale and docs.
+This module also includes a version of os.walk() that uses scandir()
+to speed it up significantly.
 
-scandir is released under the new BSD 3-clause license. See LICENSE.txt for
-the full license text.
+See README.md or https://github.com/benhoyt/scandir for rationale and
+docs, or read PEP 471 (https://www.python.org/dev/peps/pep-0471/) for
+more details on its inclusion into Python 3.5
 
-TODO: update docs, readme, etc
+scandir is released under the new BSD 3-clause license. See
+LICENSE.txt for the full license text.
+
+TODO: update docs, readme, etc (point to PEP 471)
 TODO: remove old and posixmodule stuff
+TODO: make it work on Python 2.6 if easy enough
+TODO: release scandir version 1.0
+TODO: update benhoyt.com links
 """
 
 from __future__ import division

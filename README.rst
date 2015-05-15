@@ -1,23 +1,38 @@
-scandir, a better directory iterator
-====================================
+scandir, a better directory iterator and faster os.walk()
+=========================================================
 
-**UPDATE: I've written a Python Enhancement Proposal (PEP) that proposes
-including scandir() in the standard library.** Please read
-`PEP 471 <http://legacy.python.org/dev/peps/pep-0471/>`_ for details.
+`scandir()` is a directory iteration function like `os.listdir()`,
+except that instead of returning a list of bare filenames, it yields
+`DirEntry` objects that include file type and stat information along
+with the name. Using `scandir()` increases the speed of `os.walk()`
+by 2-20 times (depending on the platform and file system) by avoiding
+unnecessary calls to `os.stat()` in most cases.
 
-scandir is a module which provides a generator version of ``os.listdir()`` that
-also exposes the extra file information the operating system returns when you
-iterate a directory. scandir also provides a much faster version of
-``os.walk()``, because it can use the extra file information exposed by the
-scandir() function.
 
-scandir is intended to work on Python 2.6+ and Python 3.2+ (and it has been
-tested on those versions).
+Now included in a Python near you!
+----------------------------------
 
-Note that this module is currently beta software -- working and used
-to some extent, and more than a proof-of-concept, but not
-battle-tested or extremely widely used. It's my hope that scandir
-will be included in Python 3.5 as ``os.scandir()``.
+`scandir` has been included in the Python 3.5 standard library as
+`os.scandir()`, and the related performance improvements to
+`os.walk()` have also been included. So if you're lucky enough to be
+using Python 3.5 (release date September 13, 2015) you get the benefit
+immediately, otherwise just use this module (`pip install scandir`)
+and do something like this in your code::
+
+    # Use the built-in version of scandir/walk if possible, otherwise
+    # use the scandir module version
+    try:
+        from os import scandir, walk
+    except ImportError:
+        from scandir import scandir, walk
+
+`PEP 471 <https://www.python.org/dev/peps/pep-0471/>`_, which is the
+PEP that proposes including `scandir` in the Python standard library,
+was `accepted <https://mail.python.org/pipermail/python-dev/2014-July/135561.html>`_
+in July 2014 by Victor Stinner, the BDFL-delegate for the PEP.
+
+This `scandir` module is intended to work on Python 2.6+ and Python
+3.2+ (and it has been tested on those versions).
 
 
 Background
@@ -33,7 +48,7 @@ of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
 **In practice, removing all those extra system calls makes ``os.walk()`` about
-7-20 times as fast on Windows, and about 4-5 times as fast on Linux and Mac OS
+7-50 times as fast on Windows, and about 3-10 times as fast on Linux and Mac OS
 X.** So we're not talking about micro-optimizations. See more benchmarks
 in the "Benchmarks" section below.
 
@@ -46,47 +61,33 @@ So as well as a faster ``walk()``, scandir adds a new ``scandir()`` function.
 They're pretty easy to use, but see "The API" below for the full docs.
 
 
-Why you should care
--------------------
-
-I'd love for these incremental (but significant!) improvements to be added to
-the Python standard library. This scandir module was released to help test the
-concept and get it in shape for inclusion in the standard ``os`` module.
-
-There are various third-party "path" and "walk directory" libraries available,
-but Python's ``os`` module isn't going away anytime soon. So we might as well
-speed it up and add small improvements where possible.
-
-**So I'd love it if you could help test scandir, report bugs, suggest
-improvements, or comment on the API.**
-
-
 Benchmarks
 ----------
 
 Below are results showing how many times as fast ``scandir.walk()`` is than
 ``os.walk()`` on various systems, found by running ``benchmark.py`` with no
-arguments as well as with the ``-s`` argument (which totals the directory size)::
+arguments::
 
-    System version          Python version  Speed ratio    With -s
-    --------------------------------------------------------------
-    Windows 7 64-bit        2.7.5 64-bit    7.5            14.2
-    Windows 7 64-bit SSD    2.7.6 64-bit    10.0           18.5
-    Windows 7 64-bit NFS    2.7.6 64-bit    23.2           46.4
+    System version          Python version  Times as fast
+    -----------------------------------------------------
+    Windows 7 64-bit        2.7.7 64-bit    TODO
+    Windows 7 64-bit SSD    2.7.7 64-bit    23.2
+    Windows 7 64-bit NFS    2.7.6 64-bit    TODO
     Windows 7 64-bit        3.4.1 64-bit    TODO
 
-    CentOS 6.5 64-bit       2.7.6 64-bit    5.5            2.3
-    Ubuntu 12.04 32-bit     2.7.3 32-bit    4.3            2.2
+    CentOS 6.5 64-bit       2.7.6 64-bit    TODO
+    Ubuntu 12.04 32-bit     2.7.3 32-bit    TODO
 
-    Mac OS X 10.9.3         2.7.5 64-bit    5.3            2.1
+    Mac OS X 10.9.3         2.7.5 64-bit    TODO
 
-All of the above tests were done using the version of scandir with the fast C
-``scandir_helper()`` function.
+All of the above tests were done using the fast C version of scandir
+(source code in `_scandir.c`).
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why ``benchmark.py`` creates a test directory
 tree with a standardized size.
 
+TODO: update --
 Another quick benchmark I've done (on Windows 7 64-bit) is running Eli
 Bendersky's `pss <https://github.com/eliben/pss>`_ source code searching tool
 across a fairly large code tree (4938 files, 598 dirs, 200 MB). Using pss out
@@ -102,15 +103,16 @@ walk()
 ~~~~~~
 
 The API for ``scandir.walk()`` is exactly the same as ``os.walk()``, so just
-`read the Python docs <http://docs.python.org/2/library/os.html#os.walk>`_.
+`read the Python docs <https://docs.python.org/3.5/library/os.html#os.walk>`_.
 
 scandir()
 ~~~~~~~~~
 
-The ``scandir()`` function is the scandir module's main workhorse. It's defined
-as follows::
+The full docs for `scandir()` and the `DirEntry` objects it yields are
+available in the `Python documentation here <https://docs.python.org/3.5/library/os.html#os.scandir>`_. 
+But below is a brief summary as well.
 
-    scandir(path='.') -> generator of DirEntry objects
+    scandir(path='.') -> iterator of DirEntry objects for given path
 
 Like ``listdir``, ``scandir`` calls the operating system's directory
 iteration system calls to get the names of the files in the given
@@ -155,6 +157,9 @@ following attributes and methods:
   system call on Windows (except for symlinks); don't follow symbolic links
   (like ``os.lstat()``) if ``follow_symlinks`` is False
 
+* ``inode()``: return the inode number of the entry; the return value
+  is cached on the ``DirEntry`` object
+
 Here's a very simple example of ``scandir()`` showing use of the
 ``DirEntry.name`` attribute and the ``DirEntry.is_dir()`` method::
 
@@ -168,28 +173,15 @@ This ``subdirs()`` function will be significantly faster with scandir
 than ``os.listdir()`` and ``os.path.isdir()`` on both Windows and POSIX
 systems, especially on medium-sized or large directories.
 
-See `PEP 471 <http://legacy.python.org/dev/peps/pep-0471/>`_ for more
-details on caching and error handling.
-
 
 Further reading
 ---------------
 
-* `Thread I started on the python-ideas list about speeding up os.walk() <http://mail.python.org/pipermail/python-ideas/2012-November/017770.html>`_
-* `Python Issue 11406, original proposal for scandir(), a generator without the dirent/stat info <http://bugs.python.org/issue11406>`_
-* `Further thread I started on python-dev that refined the scandir() API <http://mail.python.org/pipermail/python-dev/2013-May/126119.html>`_
-* `Question on StackOverflow about why os.walk() is slow and pointers to fix it <http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder>`_
-* `Question on StackOverflow asking about iterating over a directory <http://stackoverflow.com/questions/4403598/list-files-in-a-folder-as-a-stream-to-begin-process-immediately>`_
-* `BetterWalk, my previous attempt at this, on which this code is based <https://github.com/benhoyt/betterwalk>`_
-* `Info about Win32 reparse points / symbolic links <http://mail.python.org/pipermail/python-ideas/2012-November/017794.html>`_
-
-
-To-do
------
-
-* Finish the C extension version (_scandir.c)
-* Get PEP 471 accepted and ``scandir()`` included in the Python 3.5
-  standard library! :-)
+* `The Python docs for scandir <https://docs.python.org/3.5/library/os.html#os.scandir>`_
+* `PEP 471 <https://www.python.org/dev/peps/pep-0471/>`_, the
+  (now-accepted) Python Enhancement Proposal that proposed adding
+  `scandir` to the standard library -- a lot of details here,
+  including rejected ideas and previous discussion
 
 
 Flames, comments, bug reports
@@ -199,6 +191,8 @@ Please send flames, comments, and questions about scandir to Ben Hoyt:
 
 http://benhoyt.com/
 
-File bug reports or feature requests at the GitHub project page:
+File bug reports for the version in the Python 3.5 standard library
+`here <https://docs.python.org/3.5/bugs.html>`_, or file bug reports
+or feature requests for this module at the GitHub project page:
 
 https://github.com/benhoyt/scandir

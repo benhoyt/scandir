@@ -23,14 +23,18 @@ setup(
     author_email='benhoyt@gmail.com',
     url='https://github.com/benhoyt/scandir',
     license='New BSD License',
-    description='scandir, a better directory iterator that returns all file info the OS provides',
-    long_description="scandir is a generator version of os.listdir() that returns an iterator over "
-                     "files in a directory, and also exposes the extra information most OSes provide "
-                     "while iterating files in a directory. Read more at the GitHub project page.",
+    description='scandir, a better directory iterator and faster os.walk()',
+    long_description="scandir() is a generator version of os.listdir() that returns an "
+                     "iterator over files in a directory, and also exposes the extra "
+                     "information most OSes provide while iterating files in a directory "
+                     "(such as type and stat information).\n"
+                     "\n"
+                     "This module also includes a version of os.walk() that uses scandir() "
+                     "to speed it up significantly.",
     py_modules=['scandir'],
     ext_modules=[Extension('_scandir', ['_scandir.c'])],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
         'License :: OSI Approved :: BSD License',

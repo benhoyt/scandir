@@ -69,15 +69,15 @@ Below are results showing how many times as fast ``scandir.walk()`` is than
 ``os.walk()`` on various systems, found by running ``benchmark.py`` with no
 arguments::
 
-    System version       | Python version | Times as fast
-    -------------------- | -------------- | -------------
-    Windows 7 64-bit     | 2.7.7 64-bit   |          10.4
-    Windows 7 64-bit SSD | 2.7.7 64-bit   |          10.3
-    Windows 7 64-bit NFS | 2.7.6 64-bit   |          36.8
-    Windows 7 64-bit SSD | 3.4.1 64-bit   |           9.9
-    Windows 7 64-bit SSD | 3.5.0 64-bit   |           9.5
-    CentOS 6.2 64-bit    | 2.6.6 64-bit   |           3.9
-    Ubuntu 14.04 64-bit  | 2.7.6 64-bit   |           5.8
+System version       | Python version | Times as fast
+-------------------- | -------------- | -------------
+Windows 7 64-bit     | 2.7.7 64-bit   |          10.4
+Windows 7 64-bit SSD | 2.7.7 64-bit   |          10.3
+Windows 7 64-bit NFS | 2.7.6 64-bit   |          36.8
+Windows 7 64-bit SSD | 3.4.1 64-bit   |           9.9
+Windows 7 64-bit SSD | 3.5.0 64-bit   |           9.5
+CentOS 6.2 64-bit    | 2.6.6 64-bit   |           3.9
+Ubuntu 14.04 64-bit  | 2.7.6 64-bit   |           5.8
 
 All of the above tests were done using the fast C version of scandir
 (source code in ``_scandir.c``).

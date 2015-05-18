@@ -79,6 +79,7 @@ Windows 7 64-bit SSD   3.4.1 64-bit     9.9
 Windows 7 64-bit SSD   3.5.0 64-bit     9.5
 CentOS 6.2 64-bit      2.6.6 64-bit     3.9
 Ubuntu 14.04 64-bit    2.7.6 64-bit     5.8
+Mac OS X 10.9.3        2.7.5 64-bit     3.8
 ====================   ==============   =============
 
 All of the above tests were done using the fast C version of scandir

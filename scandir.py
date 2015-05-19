@@ -396,8 +396,10 @@ if sys.platform == 'win32':
 
 
 # Linux, OS X, and BSD implementation
-elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
-    if ctypes is not None:
+elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.platform:
+    have_dirent_d_type = (sys.platform != 'sunos5')
+
+    if ctypes is not None and have_dirent_d_type:
         import ctypes.util
 
         DIR_p = ctypes.c_void_p

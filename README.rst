@@ -16,7 +16,8 @@ Now included in a Python near you!
 ``os.scandir()``, and the related performance improvements to
 ``os.walk()`` have also been included. So if you're lucky enough to be
 using Python 3.5 (release date September 13, 2015) you get the benefit
-immediately, otherwise just `download this module from PyPI <https://pypi.python.org/pypi/scandir>`_,
+immediately, otherwise just
+`download this module from PyPI <https://pypi.python.org/pypi/scandir>`_,
 install it with ``pip install scandir``, and then do something like
 this in your code::
 

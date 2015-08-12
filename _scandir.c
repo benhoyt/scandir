@@ -32,19 +32,22 @@ comment):
 
 /* SECTION: Python 2/3 compatibility */
 
-#if PY_MAJOR_VERSION > 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 3
+#if PY_MAJOR_VERSION >= 3
 
 #define INIT_ERROR return NULL
 
 #else
 
 #define INIT_ERROR return
-#define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
-#define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
-#define PyExc_FileNotFoundError PyExc_OSError
 #define PyUnicode_AsUnicodeAndSize(unicode, addr_length) \
     PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
 
+#endif
+
+#if PY_MAJOR_VERSION < 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 3
+#define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
+#define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
+#define PyExc_FileNotFoundError PyExc_OSError
 #endif
 
 

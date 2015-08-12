@@ -14,7 +14,7 @@ comment):
 #include <Python.h>
 #include <structseq.h>
 #include <structmember.h>
-#include <osdefs.h>
+#include "osdefs.h"
 
 #ifdef MS_WINDOWS
 #include <windows.h>
@@ -23,12 +23,16 @@ comment):
 #include <dirent.h>
 #endif
 
+#ifndef HAVE_DIRENT_H
+#define HAVE_DIRENT_H 1
+#endif
+
 #define MODNAME "scandir"
 
 
 /* SECTION: Python 2/3 compatibility */
 
-#if PY_MAJOR_VERSION >= 3
+#if PY_MAJOR_VERSION > 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 3
 
 #define INIT_ERROR return NULL
 

@@ -66,9 +66,6 @@ FILE_ATTRIBUTE_VIRTUAL = 65536
 
 IS_PY3 = sys.version_info >= (3, 0)
 
-if not IS_PY3:
-    str = unicode
-
 
 class GenericDirEntry(object):
     __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
@@ -578,7 +575,7 @@ else:
     scandir = scandir_generic
 
 
-def walk(top, topdown=True, onerror=None, followlinks=False):
+def _walk(top, topdown=True, onerror=None, followlinks=False):
     """Like Python 3.5's implementation of os.walk() -- faster than
     the pre-Python 3.5 version as it uses scandir() internally.
     """
@@ -656,3 +653,16 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     else:
         # Yield after recursion if going bottom up
         yield top, dirs, nondirs
+
+
+if IS_PY3:
+    walk = _walk
+else:
+    # Fix for broken unicode handling on Windows on Python 2.x, see:
+    # https://github.com/benhoyt/scandir/issues/54
+    file_system_encoding = sys.getfilesystemencoding()
+
+    def walk(top, topdown=True, onerror=None, followlinks=False):
+        if isinstance(top, bytes):
+            top = top.decode(file_system_encoding)
+        return _walk(top, topdown, onerror, followlinks)

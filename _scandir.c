@@ -14,13 +14,16 @@ comment):
 #include <Python.h>
 #include <structseq.h>
 #include <structmember.h>
-#include <osdefs.h>
+#include "osdefs.h"
 
 #ifdef MS_WINDOWS
 #include <windows.h>
 #include "winreparse.h"
 #else
 #include <dirent.h>
+#ifndef HAVE_DIRENT_H
+#define HAVE_DIRENT_H 1
+#endif
 #endif
 
 #define MODNAME "scandir"
@@ -29,18 +32,17 @@ comment):
 /* SECTION: Python 2/3 compatibility */
 
 #if PY_MAJOR_VERSION >= 3
-
 #define INIT_ERROR return NULL
-
 #else
-
 #define INIT_ERROR return
+#endif
+
+#if PY_MAJOR_VERSION < 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 2
 #define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
 #define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
 #define PyExc_FileNotFoundError PyExc_OSError
 #define PyUnicode_AsUnicodeAndSize(unicode, addr_length) \
     PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
-
 #endif
 
 
@@ -891,7 +893,7 @@ PyDoc_STRVAR(posix_scandir__doc__,
 "scandir(path='.') -> iterator of DirEntry objects for given path");
 
 static char *follow_symlinks_keywords[] = {"follow_symlinks", NULL};
-#if PY_MAJOR_VERSION >= 3
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 3
 static char *follow_symlinks_format = "|$p:DirEntry.stat";
 #else
 static char *follow_symlinks_format = "|i:DirEntry.stat";

@@ -48,7 +48,11 @@ class TestWalk(unittest.TestCase):
         has_symlink = hasattr(os, "symlink")
         if has_symlink:
             try:
-                os.symlink(os.path.abspath(t2_path), link_path)
+                if sys.platform == 'win32' and sys.version_info >= (3, 2):
+                    # "target_is_directory" was only added in Python 3.2 (on Windows)
+                    os.symlink(os.path.abspath(t2_path), link_path, target_is_directory=True)
+                else:
+                    os.symlink(os.path.abspath(t2_path), link_path)
                 sub2_tree = (sub2_path, ["link"], ["tmp3"])
             except NotImplementedError:
                 sub2_tree = (sub2_path, [], ["tmp3"])
@@ -172,8 +176,8 @@ class TestWalkSymlink(unittest.TestCase):
 
         link_name = os.path.join(self.temp_dir, 'link_to_dir')
         try:
-            if sys.version_info >= (3, 3):
-                # "target_is_directory" was only added in Python 3.3
+            if sys.platform == 'win32' and sys.version_info >= (3, 2):
+                # "target_is_directory" was only added in Python 3.2 (on Windows)
                 os.symlink(self.dir_name, link_name, target_is_directory=True)
             else:
                 os.symlink(self.dir_name, link_name)

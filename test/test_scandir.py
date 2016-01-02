@@ -1,5 +1,7 @@
 """Tests for scandir.scandir()."""
 
+from __future__ import unicode_literals
+
 import os
 import shutil
 import sys
@@ -57,11 +59,11 @@ def setup_main():
     create_file(join(TEST_PATH, 'file1.txt'))
     create_file(join(TEST_PATH, 'file2.txt'), contents='12345678')
 
-    os.mkdir(join(TEST_PATH, 'subdir', u'unidir\u018F'))
+    os.mkdir(join(TEST_PATH, 'subdir', 'unidir\u018F'))
     create_file(join(TEST_PATH, 'subdir', 'file1.txt'))
-    create_file(join(TEST_PATH, 'subdir', u'unicod\u018F.txt'))
+    create_file(join(TEST_PATH, 'subdir', 'unicod\u018F.txt'))
 
-    create_file(join(TEST_PATH, 'subdir', u'unidir\u018F', 'file1.txt'))
+    create_file(join(TEST_PATH, 'subdir', 'unidir\u018F', 'file1.txt'))
 
     os.mkdir(join(TEST_PATH, 'linkdir'))
 
@@ -215,7 +217,7 @@ class TestMixin(object):
         self.assertTrue(isinstance(entry.path, bytes))
 
         # b'unicod?.txt' on Windows, b'unicod\xc6\x8f.txt' (UTF-8) or similar on POSIX
-        entry_name = u'unicod\u018f.txt'.encode(sys.getfilesystemencoding(), 'replace')
+        entry_name = 'unicod\u018f.txt'.encode(sys.getfilesystemencoding(), 'replace')
         self.assertEqual(entry.name, entry_name)
         self.assertEqual(entry.path, os.path.join(path, entry_name))
 
@@ -232,12 +234,12 @@ class TestMixin(object):
         self.assertTrue(isinstance(entry.name, str))
         self.assertTrue(isinstance(entry.path, str))
 
-        entry_name = u'unicod\u018f.txt'
+        entry_name = 'unicod\u018f.txt'
         self.assertEqual(entry.name, entry_name)
-        self.assertEqual(entry.path, os.path.join(path, u'unicod\u018f.txt'))
+        self.assertEqual(entry.path, os.path.join(path, 'unicod\u018f.txt'))
 
         # Check that it handles unicode input properly
-        path = os.path.join(TEST_PATH, 'subdir', u'unidir\u018f')
+        path = os.path.join(TEST_PATH, 'subdir', 'unidir\u018f')
         self.assertTrue(isinstance(path, str))
         entries = list(self.scandir_func(path))
         self.assertEqual(len(entries), 1)

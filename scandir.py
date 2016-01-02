@@ -66,6 +66,9 @@ FILE_ATTRIBUTE_VIRTUAL = 65536
 
 IS_PY3 = sys.version_info >= (3, 0)
 
+if IS_PY3:
+    unicode = str  # Because Python <= 3.2 doesn't have u'unicode' syntax
+
 
 class GenericDirEntry(object):
     __slots__ = ('name', '_stat', '_lstat', '_scandir_path', '_path')
@@ -130,7 +133,7 @@ class GenericDirEntry(object):
     __repr__ = __str__
 
 
-def _scandir_generic(path=u'.'):
+def _scandir_generic(path=unicode('.')):
     """Like os.listdir(), but yield DirEntry objects instead of returning
     a list of names.
     """
@@ -139,7 +142,7 @@ def _scandir_generic(path=u'.'):
 
 
 if IS_PY3 and sys.platform == 'win32':
-    def scandir_generic(path=u'.'):
+    def scandir_generic(path=unicode('.')):
         if isinstance(path, bytes):
             raise TypeError("os.scandir() doesn't support bytes path on Windows, use Unicode instead")
         return _scandir_generic(path)
@@ -328,7 +331,7 @@ if sys.platform == 'win32':
             exc.filename = filename
             return exc
 
-        def _scandir_python(path=u'.'):
+        def _scandir_python(path=unicode('.')):
             """Like os.listdir(), but yield DirEntry objects instead of returning
             a list of names.
             """
@@ -373,7 +376,7 @@ if sys.platform == 'win32':
                     raise win_error(ctypes.GetLastError(), path)
 
         if IS_PY3:
-            def scandir_python(path=u'.'):
+            def scandir_python(path=unicode('.')):
                 if isinstance(path, bytes):
                     raise TypeError("os.scandir() doesn't support bytes path on Windows, use Unicode instead")
                 return _scandir_python(path)
@@ -529,7 +532,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.plat
             exc.filename = filename
             return exc
 
-        def scandir_python(path=u'.'):
+        def scandir_python(path=unicode('.')):
             """Like os.listdir(), but yield DirEntry objects instead of returning
             a list of names.
             """

@@ -250,6 +250,28 @@ class TestMixin(object):
         self.assertEqual(entry.name, 'file1.txt')
         self.assertEqual(entry.path, os.path.join(path, 'file1.txt'))
 
+    def test_walk_unicode_handling(self):
+        encoding = sys.getfilesystemencoding()
+        dirname_unicode = u'test_unicode_dir'
+        dirname_bytes = dirname_unicode.encode(encoding)
+        dirpath = os.path.join(TEST_PATH.encode(encoding), dirname_bytes)
+        try:
+            os.makedirs(dirpath)
+
+            if sys.platform != 'win32':
+                # test bytes
+                self.assertTrue(isinstance(dirpath, bytes))
+                for (path, dirs, files) in scandir.walk(dirpath):
+                    self.assertTrue(isinstance(path, bytes))
+
+            # test unicode
+            text_type = str if IS_PY3 else unicode
+            dirpath_unicode = text_type(dirpath, encoding)
+            self.assertTrue(isinstance(dirpath_unicode, text_type))
+            for (path, dirs, files) in scandir.walk(dirpath_unicode):
+                self.assertTrue(isinstance(path, text_type))
+        finally:
+            shutil.rmtree(dirpath)
 
 if has_scandir:
     class TestScandirGeneric(TestMixin, unittest.TestCase):

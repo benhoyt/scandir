@@ -12,3 +12,5 @@ MANIFEST
 test/*.log
 test/testdir
 __pycache__
+# created by the tox command
+.tox/

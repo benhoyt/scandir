@@ -658,7 +658,7 @@ def _walk(top, topdown=True, onerror=None, followlinks=False):
         yield top, dirs, nondirs
 
 
-if IS_PY3:
+if IS_PY3 or sys.platform != 'win32':
     walk = _walk
 else:
     # Fix for broken unicode handling on Windows on Python 2.x, see:

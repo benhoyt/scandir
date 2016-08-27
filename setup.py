@@ -1,6 +1,9 @@
 """Run "python setup.py install" to install scandir."""
 
-from distutils.core import setup, Extension
+try:
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup, Extension
 import os
 import re
 

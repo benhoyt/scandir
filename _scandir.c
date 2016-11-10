@@ -672,9 +672,10 @@ static PyStructSequence_Field stat_result_fields[] = {
     {"st_uid",     "user ID of owner"},
     {"st_gid",     "group ID of owner"},
     {"st_size",    "total size, in bytes"},
-    {"st_atime",   "integer time of last access"},
-    {"st_mtime",   "integer time of last modification"},
-    {"st_ctime",   "integer time of last change"},
+    /* The NULL is replaced with PyStructSequence_UnnamedField later. */
+    {NULL,         "integer time of last access"},
+    {NULL,         "integer time of last modification"},
+    {NULL,         "integer time of last change"},
     {"st_atime",   "time of last access"},
     {"st_mtime",   "time of last modification"},
     {"st_ctime",   "time of last change"},
@@ -1803,6 +1804,9 @@ init_scandir(void)
     if (!billion)
         INIT_ERROR;
 
+    stat_result_desc.fields[7].name = PyStructSequence_UnnamedField;
+    stat_result_desc.fields[8].name = PyStructSequence_UnnamedField;
+    stat_result_desc.fields[9].name = PyStructSequence_UnnamedField;
     PyStructSequence_InitType(&StatResultType, &stat_result_desc);
     structseq_new = StatResultType.tp_new;
     StatResultType.tp_new = statresult_new;

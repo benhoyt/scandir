@@ -3,5 +3,5 @@ include *.c
 include *.h
 include *.txt
 include README.md
-recursive-include test *.py
-recursive-include test *.txt
+include test *.py
+include test *.txt

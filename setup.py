@@ -19,6 +19,9 @@ with open(os.path.join(os.path.dirname(__file__), 'scandir.py')) as f:
     else:
         raise Exception("Couldn't find version in setup.py")
 
+with open('README.rst') as f:
+    long_description = f.read()
+
 setup(
     name='scandir',
     version=version,
@@ -27,16 +30,7 @@ setup(
     url='https://github.com/benhoyt/scandir',
     license='New BSD License',
     description='scandir, a better directory iterator and faster os.walk()',
-    long_description="scandir() is a generator version of os.listdir() that returns an "
-                     "iterator over files in a directory, and also exposes the extra "
-                     "information most OSes provide while iterating files in a directory "
-                     "(such as type and stat information).\n"
-                     "\n"
-                     "This module also includes a version of os.walk() that uses scandir() "
-                     "to speed it up significantly.\n"
-                     "\n"
-                     "NOTE: If you're using Python version 3.5+, os.scandir() and the speed "
-                     "improvements to os.walk() are already available in the standard library.",
+    long_description=long_description,
     py_modules=['scandir'],
     ext_modules=[Extension('_scandir', ['_scandir.c'])],
     classifiers=[
@@ -56,6 +50,7 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
     ]
 )

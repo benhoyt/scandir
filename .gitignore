@@ -14,3 +14,4 @@ test/testdir
 __pycache__
 # created by the tox command
 .tox/
+scandir.egg-info/

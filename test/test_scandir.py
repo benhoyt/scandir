@@ -201,7 +201,9 @@ class TestMixin(object):
         # Check that unicode filenames are returned correctly as bytes in output
         path = os.path.join(TEST_PATH, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, bytes))
-        if IS_PY3 and sys.platform == 'win32':
+
+        # Note: Python 3.6 on Windows fixes the bytes filename thing by using UTF-8
+        if IS_PY3 and sys.version_info < (3, 6) and sys.platform == 'win32':
             self.assertRaises(TypeError, self.scandir_func, path)
             return
 

@@ -48,13 +48,7 @@ def create_file(path, contents='1234'):
 def setup_main():
     join = os.path.join
 
-    try:
-        os.mkdir(TEST_PATH)
-    except Exception as e:
-        print(repr(e), e.filename)
-        import time
-        time.sleep(500)
-        raise
+    os.mkdir(TEST_PATH)
     os.mkdir(join(TEST_PATH, 'subdir'))
     create_file(join(TEST_PATH, 'file1.txt'))
     create_file(join(TEST_PATH, 'file2.txt'), contents='12345678')

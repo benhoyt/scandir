@@ -8,7 +8,7 @@ environment:
 build: off
 
 build_script:
-  - "%PYTHON%\\python.exe setup.py build"
+  - "%PYTHON%\\python.exe setup.py install"
 
 test_script:
   - "%PYTHON%\\python.exe test/run_tests.py"

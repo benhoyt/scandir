@@ -203,9 +203,10 @@ class TestMixin(object):
         self.assertTrue(isinstance(path, bytes))
 
         # Python 3.6 on Windows fixes the bytes filename thing by using UTF-8
-        if sys.platform == 'win32' and (3, 0) <= sys.version_info < (3, 6) and self.scandir_func != os.scandir:
-            self.assertRaises(TypeError, self.scandir_func, path)
-            return
+        if IS_PY3 and sys.platform == 'win32':
+            if not (sys.version_info >= (3, 6) and self.scandir_func == os.scandir):
+                self.assertRaises(TypeError, self.scandir_func, path)
+                return
 
         entries = [e for e in self.scandir_func(path) if e.name.startswith(b'unicod')]
         self.assertEqual(len(entries), 1)

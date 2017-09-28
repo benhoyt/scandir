@@ -92,7 +92,7 @@ comment):
 #ifdef MS_WINDOWS
 struct _Py_stat_struct {
     unsigned long st_dev;
-    __int64 st_ino;
+    unsigned __int64 st_ino;
     unsigned short st_mode;
     int st_nlink;
     int st_uid;
@@ -176,7 +176,7 @@ _Py_attribute_data_to_stat(BY_HANDLE_FILE_INFORMATION *info, ULONG reparse_tag,
     FILE_TIME_to_time_t_nsec(&info->ftLastWriteTime, &result->st_mtime, &result->st_mtime_nsec);
     FILE_TIME_to_time_t_nsec(&info->ftLastAccessTime, &result->st_atime, &result->st_atime_nsec);
     result->st_nlink = info->nNumberOfLinks;
-    result->st_ino = (((__int64)info->nFileIndexHigh)<<32) + info->nFileIndexLow;
+    result->st_ino = (((unsigned __int64)info->nFileIndexHigh)<<32) + info->nFileIndexLow;
     if (reparse_tag == IO_REPARSE_TAG_SYMLINK) {
         /* first clear the S_IFMT bits */
         result->st_mode ^= (result->st_mode & S_IFMT);
@@ -559,9 +559,9 @@ _pystat_fromstructstat(STRUCT_STAT *st)
     PyStructSequence_SET_ITEM(v, 0, PyLong_FromLong((long)st->st_mode));
 #ifdef HAVE_LARGEFILE_SUPPORT
     PyStructSequence_SET_ITEM(v, 1,
-                              PyLong_FromLongLong((PY_LONG_LONG)st->st_ino));
+                              PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)st->st_ino));
 #else
-    PyStructSequence_SET_ITEM(v, 1, PyLong_FromLong((long)st->st_ino));
+    PyStructSequence_SET_ITEM(v, 1, PyLong_FromUnsignedLong((unsigned long)st->st_ino));
 #endif
 #ifdef MS_WINDOWS
     PyStructSequence_SET_ITEM(v, 2, PyLong_FromUnsignedLong(st->st_dev));
@@ -911,7 +911,7 @@ typedef struct {
     PyObject *lstat;
 #ifdef MS_WINDOWS
     struct _Py_stat_struct win32_lstat;
-    __int64 win32_file_index;
+    unsigned __int64 win32_file_index;
     int got_file_index;
 #if PY_MAJOR_VERSION < 3
     int name_path_bytes;
@@ -1201,12 +1201,12 @@ DirEntry_inode(DirEntry *self)
         self->win32_file_index = stat.st_ino;
         self->got_file_index = 1;
     }
-    return PyLong_FromLongLong((PY_LONG_LONG)self->win32_file_index);
+    return PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)self->win32_file_index);
 #else /* POSIX */
 #ifdef HAVE_LARGEFILE_SUPPORT
-    return PyLong_FromLongLong((PY_LONG_LONG)self->d_ino);
+    return PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)self->d_ino);
 #else
-    return PyLong_FromLong((long)self->d_ino);
+    return PyLong_FromUnsignedLong((unsigned long)self->d_ino);
 #endif
 #endif
 }

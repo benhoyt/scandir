@@ -133,8 +133,10 @@ class TestMixin(object):
             os_stat = os.stat(os.path.join(TEST_PATH, entry.name))
             scandir_stat = entry.stat()
             self.assertEqual(os_stat.st_mode, scandir_stat.st_mode)
-            self.assertEqual(os_stat.st_mtime, scandir_stat.st_mtime)
-            self.assertEqual(os_stat.st_ctime, scandir_stat.st_ctime)
+            # Cast to int because on some platforms (PyPy Linux and Windows)
+            # one includes nanoseconds and one doesn't due to compile flags
+            self.assertEqual(int(os_stat.st_mtime), int(scandir_stat.st_mtime))
+            self.assertEqual(int(os_stat.st_ctime), int(scandir_stat.st_ctime))
             if entry.is_file():
                 self.assertEqual(os_stat.st_size, scandir_stat.st_size)
 

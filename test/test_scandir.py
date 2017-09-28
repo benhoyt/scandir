@@ -202,8 +202,8 @@ class TestMixin(object):
         path = os.path.join(TEST_PATH, 'subdir').encode(sys.getfilesystemencoding(), 'replace')
         self.assertTrue(isinstance(path, bytes))
 
-        # Note: Python 3.6 on Windows fixes the bytes filename thing by using UTF-8
-        if IS_PY3 and sys.version_info < (3, 6) and sys.platform == 'win32':
+        # Python 3.6 on Windows fixes the bytes filename thing by using UTF-8
+        if sys.platform == 'win32' and (3, 0) <= sys.version_info < (3, 6) and self.scandir_func != os.scandir:
             self.assertRaises(TypeError, self.scandir_func, path)
             return
 

@@ -13,3 +13,9 @@ build_script:
 
 test_script:
   - "%PYTHON%\\python.exe test/run_tests.py"
+
+after_test:
+  - "build.cmd %PYTHON%\\python.exe setup.py bdist_wheel"
+
+artifacts:
+  - path: dist\*

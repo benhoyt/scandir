@@ -35,6 +35,9 @@ comment):
 #define INIT_ERROR return NULL
 #else
 #define INIT_ERROR return
+// Because on PyPy, Py_FileSystemDefaultEncoding is (was) defined to be NULL
+// (see PyPy Bitbucket issue #2669)
+#define FS_ENCODING (Py_FileSystemDefaultEncoding ? Py_FileSystemDefaultEncoding : "UTF-8")
 #endif
 
 #if PY_MAJOR_VERSION < 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 2
@@ -813,7 +816,7 @@ path_converter(PyObject *o, void *p) {
         if (!PyUnicode_FSConverter(unicode, &bytes))
             bytes = NULL;
 #else
-        bytes = PyUnicode_AsEncodedString(unicode, Py_FileSystemDefaultEncoding, "strict");
+        bytes = PyUnicode_AsEncodedString(unicode, FS_ENCODING, "strict");
 #endif
         Py_DECREF(unicode);
 #endif
@@ -998,7 +1001,7 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
         bytes = self->path;
         Py_INCREF(bytes);
     } else {
-        bytes = PyUnicode_AsEncodedString(self->path, Py_FileSystemDefaultEncoding, "strict");
+        bytes = PyUnicode_AsEncodedString(self->path, FS_ENCODING, "strict");
         if (!bytes)
             return NULL;
     }
@@ -1482,9 +1485,9 @@ DirEntry_from_posix_info(path_t *path, char *name, Py_ssize_t name_len,
         entry->path = PyUnicode_DecodeFSDefault(joined_path);
 #else
         entry->name = PyUnicode_Decode(name, name_len,
-                                       Py_FileSystemDefaultEncoding, "strict");
+                                       FS_ENCODING, "strict");
         entry->path = PyUnicode_Decode(joined_path, strlen(joined_path),
-                                       Py_FileSystemDefaultEncoding, "strict");
+                                       FS_ENCODING, "strict");
 #endif
     }
     else {

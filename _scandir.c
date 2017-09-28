@@ -559,7 +559,7 @@ _pystat_fromstructstat(STRUCT_STAT *st)
     PyStructSequence_SET_ITEM(v, 0, PyLong_FromLong((long)st->st_mode));
 #ifdef HAVE_LARGEFILE_SUPPORT
     PyStructSequence_SET_ITEM(v, 1,
-                              PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)st->st_ino));
+                              PyLong_FromUnsignedLongLong(st->st_ino));
 #else
     PyStructSequence_SET_ITEM(v, 1, PyLong_FromUnsignedLong((unsigned long)st->st_ino));
 #endif
@@ -1201,10 +1201,10 @@ DirEntry_inode(DirEntry *self)
         self->win32_file_index = stat.st_ino;
         self->got_file_index = 1;
     }
-    return PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)self->win32_file_index);
+    return PyLong_FromUnsignedLongLong(self->win32_file_index);
 #else /* POSIX */
 #ifdef HAVE_LARGEFILE_SUPPORT
-    return PyLong_FromUnsignedLongLong((PY_UNSIGNED_LONG_LONG)self->d_ino);
+    return PyLong_FromUnsignedLongLong(self->d_ino);
 #else
     return PyLong_FromUnsignedLong((unsigned long)self->d_ino);
 #endif

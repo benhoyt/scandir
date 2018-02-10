@@ -386,13 +386,17 @@ if sys.platform == 'win32':
 
     if _scandir is not None:
         scandir_c = _scandir.scandir
+        DirEntry_c = _scandir.DirEntry
 
     if _scandir is not None:
         scandir = scandir_c
+        DirEntry = DirEntry_c
     elif ctypes is not None:
         scandir = scandir_python
+        DirEntry = Win32DirEntryPython
     else:
         scandir = scandir_generic
+        DirEntry = GenericDirEntry
 
 
 # Linux, OS X, and BSD implementation
@@ -564,18 +568,23 @@ elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.plat
 
     if _scandir is not None:
         scandir_c = _scandir.scandir
+        DirEntry_c = _scandir.DirEntry
 
     if _scandir is not None:
         scandir = scandir_c
+        DirEntry = DirEntry_c
     elif ctypes is not None:
         scandir = scandir_python
+        DirEntry = PosixDirEntry
     else:
         scandir = scandir_generic
+        DirEntry = GenericDirEntry
 
 
 # Some other system -- no d_type or stat information
 else:
     scandir = scandir_generic
+    DirEntry = GenericDirEntry
 
 
 def _walk(top, topdown=True, onerror=None, followlinks=False):

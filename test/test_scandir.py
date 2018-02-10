@@ -297,6 +297,17 @@ if has_scandir:
                 TestMixin.setUp(self)
 
 
+    class TestScandirDirEntry(unittest.TestCase):
+        def setUp(self):
+            if not os.path.exists(TEST_PATH):
+                setup_main()
+
+        def test_iter_returns_dir_entry(self):
+            it = scandir.scandir(TEST_PATH)
+            entry = next(it)
+            assert isinstance(entry, scandir.DirEntry)
+
+
 if hasattr(os, 'scandir'):
     class TestScandirOS(TestMixin, unittest.TestCase):
         def setUp(self):

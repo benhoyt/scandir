@@ -1819,6 +1819,8 @@ init_scandir(void)
     if (PyType_Ready(&DirEntryType) < 0)
         INIT_ERROR;
 
+    PyModule_AddObject(module, "DirEntry", (PyObject *)&DirEntryType);
+
 #if PY_MAJOR_VERSION >= 3
     return module;
 #endif

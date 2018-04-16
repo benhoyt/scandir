@@ -3,7 +3,11 @@
 import glob
 import os
 import sys
-import unittest
+
+if sys.version_info[:2] < (2, 7):
+    import unittest2 as unittest
+else:
+    import unittest
 
 
 def main():

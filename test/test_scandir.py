@@ -6,7 +6,11 @@ import os
 import shutil
 import sys
 import time
-import unittest
+
+if sys.version_info[:2] < (2, 7):
+    import unittest2 as unittest
+else:
+    import unittest
 
 try:
     import scandir

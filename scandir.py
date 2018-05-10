@@ -100,31 +100,25 @@ class GenericDirEntry(object):
     # It avoids an additional attribute lookup and method call, which
     # are relatively slow on CPython.
     def is_dir(self, follow_symlinks=True):
-        try:
-            st = self.stat(follow_symlinks=follow_symlinks)
-        except OSError as e:
-            if e.errno != ENOENT:
-                raise
-            return False  # Path doesn't exist or is a broken symlink
-        return st.st_mode & 0o170000 == S_IFDIR
+        return self._is_what(follow_symlinks=follow_symlinks,
+                             s_if_type=S_IFDIR)
 
     def is_file(self, follow_symlinks=True):
+        return self._is_what(follow_symlinks=follow_symlinks,
+                             s_if_type=S_IFREG)
+
+    def is_symlink(self):
+        return self._is_what(follow_symlinks=False,
+                             s_if_type=S_IFLNK)
+
+    def _is_what(self, follow_symlinks, s_if_type):
         try:
             st = self.stat(follow_symlinks=follow_symlinks)
         except OSError as e:
             if e.errno != ENOENT:
                 raise
             return False  # Path doesn't exist or is a broken symlink
-        return st.st_mode & 0o170000 == S_IFREG
-
-    def is_symlink(self):
-        try:
-            st = self.stat(follow_symlinks=False)
-        except OSError as e:
-            if e.errno != ENOENT:
-                raise
-            return False  # Path doesn't exist or is a broken symlink
-        return st.st_mode & 0o170000 == S_IFLNK
+        return st.st_mode & 0o170000 == s_if_type
 
     def inode(self):
         st = self.stat(follow_symlinks=False)

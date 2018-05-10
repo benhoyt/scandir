@@ -23,7 +23,6 @@ from os import listdir, lstat, stat, strerror
 from os.path import join, islink
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import collections
-import os
 import sys
 
 try:
@@ -96,6 +95,10 @@ class GenericDirEntry(object):
                 self._lstat = lstat(self.path)
             return self._lstat
 
+    # The code duplication below is intentional: this is for slightly
+    # better performance on systems that fall back to GenericDirEntry.
+    # It avoids an additional attribute lookup and method call, which
+    # are relatively slow on CPython.
     def is_dir(self, follow_symlinks=True):
         try:
             st = self.stat(follow_symlinks=follow_symlinks)

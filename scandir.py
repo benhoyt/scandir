@@ -19,11 +19,11 @@ LICENSE.txt for the full license text.
 from __future__ import division
 
 from errno import ENOENT
+from collections import namedtuple
 from os import listdir, lstat, stat, strerror
 from os.path import join, islink
 from stat import S_IFDIR, S_IFLNK, S_IFREG
-import collections
-import sys
+from sys import version_info, platform, getfilesystemencoding
 
 try:
     import _scandir
@@ -63,7 +63,7 @@ FILE_ATTRIBUTE_SYSTEM = 4
 FILE_ATTRIBUTE_TEMPORARY = 256
 FILE_ATTRIBUTE_VIRTUAL = 65536
 
-IS_PY3 = sys.version_info >= (3, 0)
+IS_PY3 = version_info >= (3, 0)
 
 if IS_PY3:
     unicode = str  # Because Python <= 3.2 doesn't have u'unicode' syntax
@@ -144,7 +144,7 @@ def _scandir_generic(path=unicode('.')):
         yield GenericDirEntry(path, name)
 
 
-if IS_PY3 and sys.platform == 'win32':
+if IS_PY3 and platform == 'win32':
     def scandir_generic(path=unicode('.')):
         if isinstance(path, bytes):
             raise TypeError("os.scandir() doesn't support bytes path on Windows, use Unicode instead")
@@ -158,7 +158,7 @@ scandir_c = None
 scandir_python = None
 
 
-if sys.platform == 'win32':
+if platform == 'win32':
     if ctypes is not None:
         from ctypes import wintypes
 
@@ -193,7 +193,7 @@ if sys.platform == 'win32':
         FindClose.argtypes = [wintypes.HANDLE]
         FindClose.restype = wintypes.BOOL
 
-        Win32StatResult = collections.namedtuple('Win32StatResult', [
+        Win32StatResult = namedtuple('Win32StatResult', [
             'st_mode',
             'st_ino',
             'st_dev',
@@ -403,8 +403,8 @@ if sys.platform == 'win32':
 
 
 # Linux, OS X, and BSD implementation
-elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.platform:
-    have_dirent_d_type = (sys.platform != 'sunos5')
+elif platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in platform:
+    have_dirent_d_type = (platform != 'sunos5')
 
     if ctypes is not None and have_dirent_d_type:
         import ctypes.util
@@ -414,7 +414,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.plat
         # Rather annoying how the dirent struct is slightly different on each
         # platform. The only fields we care about are d_name and d_type.
         class Dirent(ctypes.Structure):
-            if sys.platform.startswith('linux'):
+            if platform.startswith('linux'):
                 _fields_ = (
                     ('d_ino', ctypes.c_ulong),
                     ('d_off', ctypes.c_long),
@@ -452,7 +452,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.plat
         closedir.argtypes = [DIR_p]
         closedir.restype = ctypes.c_int
 
-        file_system_encoding = sys.getfilesystemencoding()
+        file_system_encoding = getfilesystemencoding()
 
         class PosixDirEntry(object):
             __slots__ = ('name', '_d_type', '_stat', '_lstat', '_scandir_path', '_path', '_inode')
@@ -670,12 +670,12 @@ def _walk(top, topdown=True, onerror=None, followlinks=False):
         yield top, dirs, nondirs
 
 
-if IS_PY3 or sys.platform != 'win32':
+if IS_PY3 or platform != 'win32':
     walk = _walk
 else:
     # Fix for broken unicode handling on Windows on Python 2.x, see:
     # https://github.com/benhoyt/scandir/issues/54
-    file_system_encoding = sys.getfilesystemencoding()
+    file_system_encoding = getfilesystemencoding()
 
     def walk(top, topdown=True, onerror=None, followlinks=False):
         if isinstance(top, bytes):

@@ -48,6 +48,11 @@ comment):
     PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
 #endif
 
+// Because on PyPy not worjing without
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION > 2 && defined(PYPY_VERSION_NUM)
+#define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
+#define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))
+#endif
 
 /* SECTION: Helper utilities from posixmodule.c, fileutils.h, etc */
 
@@ -88,7 +93,8 @@ comment):
 #endif
 
 // _Py_stat_struct is already defined in fileutils.h on Python 3.5+
-#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 5)
+// But not in PyPy
+#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 5) || defined(PYPY_VERSION_NUM)
 #ifdef MS_WINDOWS
 struct _Py_stat_struct {
     unsigned long st_dev;

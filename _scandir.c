@@ -48,7 +48,7 @@ comment):
     PyUnicode_AsUnicode(unicode); *(addr_length) = PyUnicode_GetSize(unicode)
 #endif
 
-// Because on PyPy not worjing without
+// Because on PyPy not working without
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION > 2 && defined(PYPY_VERSION_NUM)
 #define _Py_IDENTIFIER(name) static char * PyId_##name = #name;
 #define _PyObject_GetAttrId(obj, pyid_name) PyObject_GetAttrString((obj), *(pyid_name))

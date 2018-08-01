@@ -4,6 +4,8 @@ try:
     from setuptools import setup, Extension
 except ImportError:
     from distutils.core import setup, Extension
+
+
 import os
 import re
 
@@ -32,7 +34,7 @@ setup(
     description='scandir, a better directory iterator and faster os.walk()',
     long_description=long_description,
     py_modules=['scandir'],
-    ext_modules=[Extension('_scandir', ['_scandir.c'])],
+    ext_modules=[Extension('_scandir', ['_scandir.c'], optional=True)],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',

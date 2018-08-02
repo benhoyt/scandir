@@ -4,6 +4,8 @@ try:
     from setuptools import setup, Extension
 except ImportError:
     from distutils.core import setup, Extension
+
+
 import os
 import re
 
@@ -22,6 +24,12 @@ with open(os.path.join(os.path.dirname(__file__), 'scandir.py')) as f:
 with open('README.rst') as f:
     long_description = f.read()
 
+
+# the extension is optional since in case of lack of c the api
+# there is a ctypes fallback and a slow python fallback
+extension = Extension('_scandir', ['_scandir.c'], optional=True)
+
+
 setup(
     name='scandir',
     version=version,
@@ -32,7 +40,7 @@ setup(
     description='scandir, a better directory iterator and faster os.walk()',
     long_description=long_description,
     py_modules=['scandir'],
-    ext_modules=[Extension('_scandir', ['_scandir.c'])],
+    ext_modules=[extension],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',

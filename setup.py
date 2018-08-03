@@ -2,8 +2,13 @@
 
 try:
     from setuptools import setup, Extension
-    from setuptolls.command.build_ext import build_ext as base_build_ext
+    from setuptools.command.build_ext import build_ext as base_build_ext
 except ImportError:
+    import warnings
+    import sys
+    val = sys.exc_info()[1]
+
+    warnings.warn("import of setuptools failed %r" % val)
     from distutils.core import setup, Extension
     from distutils.command.build_ext import build_ext as base_build_ext
 

@@ -422,6 +422,16 @@ elif sys.platform.startswith(('linux', 'darwin', 'sunos5')) or 'bsd' in sys.plat
                     ('d_type', ctypes.c_byte),
                     ('d_name', ctypes.c_char * 256),
                 )
+            elif 'openbsd' in sys.platform:
+                _fields_ = (
+                    ('d_ino', ctypes.c_uint64),
+                    ('d_off', ctypes.c_uint64),
+                    ('d_reclen', ctypes.c_uint16),
+                    ('d_type', ctypes.c_uint8),
+                    ('d_namlen', ctypes.c_uint8),
+                    ('__d_padding', ctypes.c_uint8 * 4),
+                    ('d_name', ctypes.c_char * 256),
+                )
             else:
                 _fields_ = (
                     ('d_ino', ctypes.c_uint32),  # must be uint32, not ulong

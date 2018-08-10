@@ -2,12 +2,20 @@
 
 try:
     from setuptools import setup, Extension
+    from setuptools.command.build_ext import build_ext as base_build_ext
 except ImportError:
-    from distutils.core import setup, Extension
+    import warnings
+    import sys
+    val = sys.exc_info()[1]
 
+    warnings.warn("import of setuptools failed %r" % val)
+    from distutils.core import setup, Extension
+    from distutils.command.build_ext import build_ext as base_build_ext
 
 import os
 import re
+import sys
+import logging
 
 # Get version without importing scandir because that will lock the
 # .pyd file (if scandir is already installed) so it can't be
@@ -25,8 +33,18 @@ with open('README.rst') as f:
     long_description = f.read()
 
 
-# the extension is optional since in case of lack of c the api
-# there is a ctypes fallback and a slow python fallback
+class BuildExt(base_build_ext):
+
+    # the extension is optional since in case of lack of c the api
+    # there is a ctypes fallback and a slow python fallback
+
+    def build_extension(self, ext):
+        try:
+            base_build_ext.build_extension(self, ext)
+        except Exception:
+            exception = sys.exc_info()[0]
+            logging.warn("building the %s failed with %s", ext.name, exception)
+
 extension = Extension('_scandir', ['_scandir.c'], optional=True)
 
 
@@ -58,5 +76,5 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
-    ]
+    ], cmdclass={'build_ext': BuildExt},
 )

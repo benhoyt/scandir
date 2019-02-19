@@ -73,8 +73,7 @@ def setup_symlinks():
 
     dir_name = os.path.abspath(join(TEST_PATH, 'linkdir', 'linksubdir'))
     dir_link = join(TEST_PATH, 'linkdir', 'link_to_dir')
-    if sys.version_info >= (3, 3):
-        # "target_is_directory" was only added in Python 3.3
+    if IS_PY3:
         os.symlink(dir_name, dir_link, target_is_directory=True)
     else:
         os.symlink(dir_name, dir_link)

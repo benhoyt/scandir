@@ -50,7 +50,7 @@ was `accepted <https://mail.python.org/pipermail/python-dev/2014-July/135561.htm
 in July 2014 by Victor Stinner, the BDFL-delegate for the PEP.
 
 This ``scandir`` module is intended to work on Python 2.7+ and Python
-3.2+ (and it has been tested on those versions).
+3.4+ (and it has been tested on those versions).
 
 
 Background

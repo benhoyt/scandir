@@ -6,11 +6,7 @@ import os
 import shutil
 import sys
 import time
-
-if sys.version_info[:2] < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 try:
     import scandir
@@ -151,8 +147,7 @@ class TestMixin(object):
 
     def test_file_attributes(self):
         if sys.platform != 'win32' or not self.has_file_attributes:
-            # st_file_attributes is Win32 specific (but can't use
-            # unittest.skipUnless on Python 2.6)
+            # st_file_attributes is Win32 specific
             return self.skipTest('st_file_attributes not supported')
 
         entries = dict((e.name, e) for e in self.scandir_func(TEST_PATH))

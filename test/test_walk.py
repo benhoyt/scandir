@@ -3,15 +3,13 @@
 import os
 import shutil
 import sys
-
-if sys.version_info[:2] < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 import scandir
 
 walk_func = scandir.walk
+
+IS_PY3 = sys.version_info >= (3, 0)
 
 
 class TestWalk(unittest.TestCase):
@@ -52,8 +50,7 @@ class TestWalk(unittest.TestCase):
         has_symlink = hasattr(os, "symlink")
         if has_symlink:
             try:
-                if sys.platform == 'win32' and sys.version_info >= (3, 2):
-                    # "target_is_directory" was only added in Python 3.2 (on Windows)
+                if IS_PY3:
                     os.symlink(os.path.abspath(t2_path), link_path, target_is_directory=True)
                 else:
                     os.symlink(os.path.abspath(t2_path), link_path)
@@ -180,8 +177,7 @@ class TestWalkSymlink(unittest.TestCase):
 
         link_name = os.path.join(self.temp_dir, 'link_to_dir')
         try:
-            if sys.platform == 'win32' and sys.version_info >= (3, 2):
-                # "target_is_directory" was only added in Python 3.2 (on Windows)
+            if IS_PY3:
                 os.symlink(self.dir_name, link_name, target_is_directory=True)
             else:
                 os.symlink(self.dir_name, link_name)

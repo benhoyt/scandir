@@ -3,6 +3,7 @@
 *.so
 *.sublime-project
 *.sublime-workspace
+.idea
 benchtree
 build
 dist

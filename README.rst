@@ -49,8 +49,8 @@ PEP that proposes including ``scandir`` in the Python standard library,
 was `accepted <https://mail.python.org/pipermail/python-dev/2014-July/135561.html>`_
 in July 2014 by Victor Stinner, the BDFL-delegate for the PEP.
 
-This ``scandir`` module is intended to work on Python 2.6+ and Python
-3.2+ (and it has been tested on those versions).
+This ``scandir`` module is intended to work on Python 2.7+ and Python
+3.4+ (and it has been tested on those versions).
 
 
 Background
@@ -94,7 +94,6 @@ Windows 7 64-bit SSD   2.7.7 64-bit     10.3
 Windows 7 64-bit NFS   2.7.6 64-bit     36.8
 Windows 7 64-bit SSD   3.4.1 64-bit     9.9
 Windows 7 64-bit SSD   3.5.0 64-bit     9.5
-CentOS 6.2 64-bit      2.6.6 64-bit     3.9
 Ubuntu 14.04 64-bit    2.7.6 64-bit     5.8
 Mac OS X 10.9.3        2.7.5 64-bit     3.8
 ====================   ==============   =============

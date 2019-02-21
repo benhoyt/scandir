@@ -28,5 +28,5 @@ matrix:
           dist: xenial
           env: TOXENV=py37
 
-install: pip install tox-travis
+install: pip install tox
 script: tox

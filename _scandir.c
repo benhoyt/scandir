@@ -1533,16 +1533,24 @@ typedef struct {
 
 #ifdef MS_WINDOWS
 
-static void
-ScandirIterator_close(ScandirIterator *iterator)
+static int
+ScandirIterator_is_closed(ScandirIterator *iterator)
 {
-    if (iterator->handle == INVALID_HANDLE_VALUE)
+    return iterator->handle == INVALID_HANDLE_VALUE;
+}
+
+static void
+ScandirIterator_closedir(ScandirIterator *iterator)
+{
+    HANDLE handle = iterator->handle;
+
+    if (handle == INVALID_HANDLE_VALUE)
         return;
 
-    Py_BEGIN_ALLOW_THREADS
-    FindClose(iterator->handle);
-    Py_END_ALLOW_THREADS
     iterator->handle = INVALID_HANDLE_VALUE;
+    Py_BEGIN_ALLOW_THREADS
+    FindClose(handle);
+    Py_END_ALLOW_THREADS
 }
 
 static PyObject *
@@ -1550,12 +1558,11 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 {
     WIN32_FIND_DATAW *file_data = &iterator->file_data;
     BOOL success;
+    PyObject *entry;
 
-    /* Happens if the iterator is iterated twice */
-    if (iterator->handle == INVALID_HANDLE_VALUE) {
-        PyErr_SetNone(PyExc_StopIteration);
+    /* Happens if the iterator is iterated twice, or closed explicitly */
+    if (iterator->handle == INVALID_HANDLE_VALUE)
         return NULL;
-    }
 
     while (1) {
         if (!iterator->first_time) {
@@ -1563,9 +1570,9 @@ ScandirIterator_iternext(ScandirIterator *iterator)
             success = FindNextFileW(iterator->handle, file_data);
             Py_END_ALLOW_THREADS
             if (!success) {
+                /* Error or no more files */
                 if (GetLastError() != ERROR_NO_MORE_FILES)
-                    return path_error(&iterator->path);
-                /* No more files found in directory, stop iterating */
+                    path_error(&iterator->path);
                 break;
             }
         }
@@ -1573,30 +1580,41 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
         /* Skip over . and .. */
         if (wcscmp(file_data->cFileName, L".") != 0 &&
-                wcscmp(file_data->cFileName, L"..") != 0)
-            return DirEntry_from_find_data(&iterator->path, file_data);
+            wcscmp(file_data->cFileName, L"..") != 0) {
+            entry = DirEntry_from_find_data(&iterator->path, file_data);
+            if (!entry)
+                break;
+            return entry;
+        }
 
         /* Loop till we get a non-dot directory or finish iterating */
     }
 
-    ScandirIterator_close(iterator);
-
-    PyErr_SetNone(PyExc_StopIteration);
+    /* Error or no more files */
+    ScandirIterator_closedir(iterator);
     return NULL;
 }
 
 #else /* POSIX */
 
-static void
-ScandirIterator_close(ScandirIterator *iterator)
+static int
+ScandirIterator_is_closed(ScandirIterator *iterator)
 {
-    if (!iterator->dirp)
+    return !iterator->dirp;
+}
+
+static void
+ScandirIterator_closedir(ScandirIterator *iterator)
+{
+    DIR *dirp = iterator->dirp;
+
+    if (!dirp)
         return;
 
-    Py_BEGIN_ALLOW_THREADS
-    closedir(iterator->dirp);
-    Py_END_ALLOW_THREADS
     iterator->dirp = NULL;
+    Py_BEGIN_ALLOW_THREADS
+    closedir(dirp);
+    Py_END_ALLOW_THREADS
     return;
 }
 
@@ -1606,12 +1624,11 @@ ScandirIterator_iternext(ScandirIterator *iterator)
     struct dirent *direntp;
     Py_ssize_t name_len;
     int is_dot;
+    PyObject *entry;
 
-    /* Happens if the iterator is iterated twice */
-    if (!iterator->dirp) {
-        PyErr_SetNone(PyExc_StopIteration);
+    /* Happens if the iterator is iterated twice, or closed explicitly */
+    if (!iterator->dirp)
         return NULL;
-    }
 
     while (1) {
         errno = 0;
@@ -1620,9 +1637,9 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         Py_END_ALLOW_THREADS
 
         if (!direntp) {
+            /* Error or no more files */
             if (errno != 0)
-                return path_error(&iterator->path);
-            /* No more files found in directory, stop iterating */
+                path_error(&iterator->path);
             break;
         }
 
@@ -1631,33 +1648,89 @@ ScandirIterator_iternext(ScandirIterator *iterator)
         is_dot = direntp->d_name[0] == '.' &&
                  (name_len == 1 || (direntp->d_name[1] == '.' && name_len == 2));
         if (!is_dot) {
-            return DirEntry_from_posix_info(&iterator->path, direntp->d_name,
+            entry = DirEntry_from_posix_info(&iterator->path, direntp->d_name,
                                             name_len, direntp->d_ino
 #ifdef HAVE_DIRENT_D_TYPE
                                             , direntp->d_type
 #endif
                                             );
+            if (!entry)
+                break;
+            return entry;
         }
 
         /* Loop till we get a non-dot directory or finish iterating */
     }
 
-    ScandirIterator_close(iterator);
-
-    PyErr_SetNone(PyExc_StopIteration);
+    /* Error or no more files */
+    ScandirIterator_closedir(iterator);
     return NULL;
 }
 
 #endif
 
+static PyObject *
+ScandirIterator_close(ScandirIterator *self, PyObject *args)
+{
+    ScandirIterator_closedir(self);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ScandirIterator_enter(PyObject *self, PyObject *args)
+{
+    Py_INCREF(self);
+    return self;
+}
+
+static PyObject *
+ScandirIterator_exit(ScandirIterator *self, PyObject *args)
+{
+    ScandirIterator_closedir(self);
+    Py_RETURN_NONE;
+}
+
+static void
+ScandirIterator_finalize(ScandirIterator *iterator)
+{
+    PyObject *error_type, *error_value, *error_traceback;
+
+    /* Save the current exception, if any. */
+    PyErr_Fetch(&error_type, &error_value, &error_traceback);
+
+    if (!ScandirIterator_is_closed(iterator)) {
+        ScandirIterator_closedir(iterator);
+
+        if (PyErr_ResourceWarning((PyObject *)iterator, 1,
+                                  "unclosed scandir iterator %R", iterator)) {
+            /* Spurious errors can appear at shutdown */
+            if (PyErr_ExceptionMatches(PyExc_Warning)) {
+                PyErr_WriteUnraisable((PyObject *) iterator);
+            }
+        }
+    }
+
+    path_cleanup(&iterator->path);
+
+    /* Restore the saved exception. */
+    PyErr_Restore(error_type, error_value, error_traceback);
+}
+
 static void
 ScandirIterator_dealloc(ScandirIterator *iterator)
 {
-    ScandirIterator_close(iterator);
-    Py_XDECREF(iterator->path.object);
-    path_cleanup(&iterator->path);
+    if (PyObject_CallFinalizerFromDealloc((PyObject *)iterator) < 0)
+        return;
+
     Py_TYPE(iterator)->tp_free((PyObject *)iterator);
 }
+
+static PyMethodDef ScandirIterator_methods[] = {
+    {"__enter__", (PyCFunction)ScandirIterator_enter, METH_NOARGS},
+    {"__exit__", (PyCFunction)ScandirIterator_exit, METH_VARARGS},
+    {"close", (PyCFunction)ScandirIterator_close, METH_NOARGS},
+    {NULL}
+};
 
 static PyTypeObject ScandirIteratorType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -1688,6 +1761,27 @@ static PyTypeObject ScandirIteratorType = {
     0,                                      /* tp_weaklistoffset */
     PyObject_SelfIter,                      /* tp_iter */
     (iternextfunc)ScandirIterator_iternext, /* tp_iternext */
+    ScandirIterator_methods,                /* tp_methods */
+    0,                                      /* tp_members */
+    0,                                      /* tp_getset */
+    0,                                      /* tp_base */
+    0,                                      /* tp_dict */
+    0,                                      /* tp_descr_get */
+    0,                                      /* tp_descr_set */
+    0,                                      /* tp_dictoffset */
+    0,                                      /* tp_init */
+    0,                                      /* tp_alloc */
+    0,                                      /* tp_new */
+    0,                                      /* tp_free */
+    0,                                      /* tp_is_gc */
+    0,                                      /* tp_bases */
+    0,                                      /* tp_mro */
+    0,                                      /* tp_cache */
+    0,                                      /* tp_subclasses */
+    0,                                      /* tp_weaklist */
+    0,                                      /* tp_del */
+    0,                                      /* tp_version_tag */
+    (destructor)ScandirIterator_finalize,   /* tp_finalize */
 };
 
 static PyObject *

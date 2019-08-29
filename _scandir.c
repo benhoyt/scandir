@@ -17,6 +17,8 @@ comment):
 #include "osdefs.h"
 
 #ifdef MS_WINDOWS
+#define STRICT 1
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "winreparse.h"
 #else
@@ -1533,11 +1535,13 @@ typedef struct {
 
 #ifdef MS_WINDOWS
 
+#if PY_MAJOR_VERSION == 3
 static int
 ScandirIterator_is_closed(ScandirIterator *iterator)
 {
     return iterator->handle == INVALID_HANDLE_VALUE;
 }
+#endif
 
 static void
 ScandirIterator_closedir(ScandirIterator *iterator)
@@ -1597,11 +1601,13 @@ ScandirIterator_iternext(ScandirIterator *iterator)
 
 #else /* POSIX */
 
+#if PY_MAJOR_VERSION == 3
 static int
 ScandirIterator_is_closed(ScandirIterator *iterator)
 {
     return !iterator->dirp;
 }
+#endif
 
 static void
 ScandirIterator_closedir(ScandirIterator *iterator)
@@ -1690,6 +1696,7 @@ ScandirIterator_exit(ScandirIterator *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+#if PY_MAJOR_VERSION == 3
 static void
 ScandirIterator_finalize(ScandirIterator *iterator)
 {
@@ -1701,6 +1708,7 @@ ScandirIterator_finalize(ScandirIterator *iterator)
     if (!ScandirIterator_is_closed(iterator)) {
         ScandirIterator_closedir(iterator);
 
+#if PY_MINOR_VERSION >= 6
         if (PyErr_ResourceWarning((PyObject *)iterator, 1,
                                   "unclosed scandir iterator %R", iterator)) {
             /* Spurious errors can appear at shutdown */
@@ -1708,6 +1716,7 @@ ScandirIterator_finalize(ScandirIterator *iterator)
                 PyErr_WriteUnraisable((PyObject *) iterator);
             }
         }
+#endif
     }
 
     path_cleanup(&iterator->path);
@@ -1715,13 +1724,15 @@ ScandirIterator_finalize(ScandirIterator *iterator)
     /* Restore the saved exception. */
     PyErr_Restore(error_type, error_value, error_traceback);
 }
+#endif
 
 static void
 ScandirIterator_dealloc(ScandirIterator *iterator)
 {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 4
     if (PyObject_CallFinalizerFromDealloc((PyObject *)iterator) < 0)
         return;
-
+#endif
     Py_TYPE(iterator)->tp_free((PyObject *)iterator);
 }
 
@@ -1753,8 +1764,12 @@ static PyTypeObject ScandirIteratorType = {
     0,                                      /* tp_getattro */
     0,                                      /* tp_setattro */
     0,                                      /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT
-        | Py_TPFLAGS_HAVE_FINALIZE,         /* tp_flags */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 4
+    Py_TPFLAGS_DEFAULT                      /* tp_flags */
+        | Py_TPFLAGS_HAVE_FINALIZE,
+#else
+    Py_TPFLAGS_DEFAULT,                     /* tp_flags */
+#endif
     0,                                      /* tp_doc */
     0,                                      /* tp_traverse */
     0,                                      /* tp_clear */
@@ -1780,9 +1795,11 @@ static PyTypeObject ScandirIteratorType = {
     0,                                      /* tp_cache */
     0,                                      /* tp_subclasses */
     0,                                      /* tp_weaklist */
+#if PY_MAJOR_VERSION == 3
     0,                                      /* tp_del */
     0,                                      /* tp_version_tag */
     (destructor)ScandirIterator_finalize,   /* tp_finalize */
+#endif
 };
 
 static PyObject *

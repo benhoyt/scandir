@@ -673,11 +673,13 @@ def _walk(top, topdown=True, onerror=None, followlinks=False):
                 # the caller can replace the directory entry during the "yield"
                 # above.
                 if followlinks or not islink(new_path):
-                    yield from walk(new_path, topdown, onerror, followlinks)
+                    for result in walk(new_path, topdown, onerror, followlinks):
+                        yield result
         else:
             # Recurse into sub-directories
             for new_path in walk_dirs:
-                yield from walk(new_path, topdown, onerror, followlinks)
+                for result in walk(new_path, topdown, onerror, followlinks):
+                    yield result
             # Yield after recursion if going bottom up
             yield top, dirs, nondirs
 

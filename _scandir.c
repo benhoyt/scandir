@@ -136,6 +136,15 @@ struct _Py_stat_struct {
 
 #ifdef MS_WINDOWS
 
+typedef DWORD (*GetFinalPathNameByHandleW_t)(
+  HANDLE hFile,
+  LPWSTR  lpszFilePath,
+  DWORD  cchFilePath,
+  DWORD  dwFlags
+);
+
+static GetFinalPathNameByHandleW_t _GetFinalPathNameByHandleW = NULL;
+
 static __int64 secs_between_epochs = 11644473600; /* Seconds between 1.1.1601 and 1.1.1970 */
 
 static void
@@ -198,9 +207,13 @@ get_target_path(HANDLE hdl, wchar_t **target_path)
     int buf_size, result_length;
     wchar_t *buf;
 
+    if (!_GetFinalPathNameByHandleW)
+        return PyErr_Format(PyExc_NotImplementedError,
+            "GetFinalPathNameByHandle not available on this platform");
+
     /* We have a good handle to the target, use it to determine
        the target path name (then we'll call lstat on it). */
-    buf_size = GetFinalPathNameByHandleW(hdl, 0, 0,
+    buf_size = _GetFinalPathNameByHandleW(hdl, 0, 0,
                                          VOLUME_NAME_DOS);
     if(!buf_size)
         return FALSE;
@@ -211,7 +224,7 @@ get_target_path(HANDLE hdl, wchar_t **target_path)
         return FALSE;
     }
 
-    result_length = GetFinalPathNameByHandleW(hdl,
+    result_length = _GetFinalPathNameByHandleW(hdl,
                        buf, buf_size, VOLUME_NAME_DOS);
 
     if(!result_length) {
@@ -341,7 +354,7 @@ win32_xstat_impl_w(const wchar_t *path, struct _Py_stat_struct *result,
             if (!CloseHandle(hFile))
                 return -1;
 
-            if (traverse) {
+            if (traverse && _GetFinalPathNameByHandleW) {
                 /* In order to call GetFinalPathNameByHandle we need to open
                    the file without the reparse handling flag set. */
                 hFile2 = CreateFileW(
@@ -1826,6 +1839,14 @@ init_scandir(void)
         INIT_ERROR;
 
     PyModule_AddObject(module, "DirEntry", (PyObject *)&DirEntryType);
+
+#ifdef MS_WINDOWS
+    {
+        HANDLE hKernel32 = GetModuleHandleW(L"KERNEL32");
+        _GetFinalPathNameByHandleW = (GetFinalPathNameByHandleW_t) GetProcAddress(
+            hKernel32, "GetFinalPathNameByHandleW");
+    }
+#endif
 
 #if PY_MAJOR_VERSION >= 3
     return module;

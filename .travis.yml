@@ -23,10 +23,42 @@ matrix:
           os: linux
           dist: trusty
           env: TOXENV=py36
+        - python: 3.6
+          arch: arm64
+          os: linux
+          dist: trusty
+          services: docker
+          env: TOXENV=py36, BUILD_WHEEL=true
         - python: 3.7
           os: linux
           dist: xenial
           env: TOXENV=py37
+        - python: 3.7
+          arch: arm64
+          os: linux
+          dist: trusty
+          services: docker
+          env: TOXENV=py37, BUILD_WHEEL=true
+        - python: 3.8
+          os: linux
+          dist: xenial
+          env: TOXENV=py38
+        - python: 3.8
+          arch: arm64
+          os: linux
+          dist: xenial
+          services: docker
+          env: TOXENV=py38, BUILD_WHEEL=true
+        - python: 3.9
+          os: linux
+          dist: xenial
+          env: TOXENV=py39
+        - python: 3.9
+          arch: arm64
+          os: linux
+          dist: xenial
+          services: docker
+          env: TOXENV=py39, BUILD_WHEEL=true
         - language: generic
           os: osx
           osx_image: xcode9.4
@@ -36,5 +68,20 @@ matrix:
           osx_image: xcode10.1
           env: TOXENV=py27,py37
 
-install: pip install tox
-script: tox
+install:
+    - pip install tox
+    - if [ "$BUILD_WHEEL" == "true" ]; then
+        pip install wheel cibuildwheel==1.5.2 ;
+      fi
+
+script:
+    - if [ "$BUILD_WHEEL" == "true" ]; then
+        cibuildwheel --output-dir dist ;
+      fi
+    - tox
+
+after_success:
+    - if [ "$BUILD_WHEEL" == "true" ]; then
+        pip install twine ;
+        twine upload  ${TRAVIS_BUILD_DIR}/wheelhouse/* ;
+      fi

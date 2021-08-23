@@ -986,10 +986,12 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
     if (!path)
         return NULL;
 
+    Py_BEGIN_ALLOW_THREADS
     if (follow_symlinks)
         result = win32_stat_w(path, &st);
     else
         result = win32_lstat_w(path, &st);
+    Py_END_ALLOW_THREADS
 
     if (result != 0) {
         return PyErr_SetExcFromWindowsErrWithFilenameObject(PyExc_OSError,
@@ -1014,10 +1016,12 @@ DirEntry_fetch_stat(DirEntry *self, int follow_symlinks)
 #endif
     path = PyBytes_AS_STRING(bytes);
 
+    Py_BEGIN_ALLOW_THREADS
     if (follow_symlinks)
         result = STAT(path, &st);
     else
         result = LSTAT(path, &st);
+    Py_END_ALLOW_THREADS
     Py_DECREF(bytes);
 
     if (result != 0)

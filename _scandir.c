@@ -660,8 +660,6 @@ _pystat_fromstructstat(STRUCT_STAT *st)
     return v;
 }
 
-char *PyStructSequence_UnnamedField = "unnamed field";
-
 PyDoc_STRVAR(stat_result__doc__,
 "stat_result: Result from stat, fstat, or lstat.\n\n\
 This object may be accessed either as a tuple of\n\
@@ -681,7 +679,7 @@ static PyStructSequence_Field stat_result_fields[] = {
     {"st_uid",     "user ID of owner"},
     {"st_gid",     "group ID of owner"},
     {"st_size",    "total size, in bytes"},
-    /* The NULL is replaced with PyStructSequence_UnnamedField later. */
+    /* The NULL is replaced with "unnamed field" later. */
     {NULL,         "integer time of last access"},
     {NULL,         "integer time of last modification"},
     {NULL,         "integer time of last change"},
@@ -1817,9 +1815,10 @@ init_scandir(void)
     if (!billion)
         INIT_ERROR;
 
-    stat_result_desc.fields[7].name = PyStructSequence_UnnamedField;
-    stat_result_desc.fields[8].name = PyStructSequence_UnnamedField;
-    stat_result_desc.fields[9].name = PyStructSequence_UnnamedField;
+    char * unnamed_field = "unnamed field";
+    stat_result_desc.fields[7].name = unnamed_field;
+    stat_result_desc.fields[8].name = unnamed_field;
+    stat_result_desc.fields[9].name = unnamed_field;
     PyStructSequence_InitType(&StatResultType, &stat_result_desc);
     structseq_new = StatResultType.tp_new;
     StatResultType.tp_new = statresult_new;

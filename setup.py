@@ -42,8 +42,8 @@ class BuildExt(base_build_ext):
         try:
             base_build_ext.build_extension(self, ext)
         except Exception:
-            exception = sys.exc_info()[0]
-            logging.warn("building the %s failed with %s", ext.name, exception)
+            info = sys.exc_info()
+            logging.warn("building %s failed with %s: %s", ext.name, info[0], info[1])
 
 extension = Extension('_scandir', ['_scandir.c'], optional=True)
 

@@ -25,4 +25,5 @@ jobs:
       - name: Run tests
         run: |
           python --version
+          python setup.py install
           python test/run_tests.py

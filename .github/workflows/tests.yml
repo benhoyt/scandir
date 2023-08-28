@@ -37,9 +37,7 @@ jobs:
       - name: Run tests
         run: |
           python test/run_tests.py
-
-jobs:
-  build:
+  build27:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

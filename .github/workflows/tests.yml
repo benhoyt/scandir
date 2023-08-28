@@ -17,6 +17,9 @@ jobs:
         exclude:
           - os: macos-latest
             python-version: 'pypy-2.7'
+        exclude:
+          - os: windows-latest
+            python-version: 'pypy-2.7'
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python

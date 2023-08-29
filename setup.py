@@ -19,9 +19,9 @@ import logging
 
 if '--require-scandir-extension' in sys.argv:
     sys.argv = [arg for arg in sys.argv if arg != '--require-scandir-extension']
-    require_scandir_extension = True
+    require_c_extension = True
 else:
-    require_scandir_extension = False
+    require_c_extension = False
 
 # Get version without importing scandir because that will lock the
 # .pyd file (if scandir is already installed) so it can't be
@@ -48,13 +48,13 @@ class BuildExt(base_build_ext):
         try:
             base_build_ext.build_extension(self, ext)
         except Exception:
-            if require_scandir_extension:
+            if require_c_extension:
                 logging.error('--require-scandir-extension is set, not falling back to Python implementation')
                 raise
             info = sys.exc_info()
             logging.warn("building %s failed with %s: %s", ext.name, info[0], info[1])
 
-extension = Extension('_scandir', ['_scandir.c'], optional=not require_scandir_extension)
+extension = Extension('_scandir', ['_scandir.c'], optional=not require_c_extension)
 
 
 setup(

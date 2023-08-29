@@ -94,7 +94,7 @@ comment):
 
 // _Py_stat_struct is already defined in fileutils.h on Python 3.5+
 // But not in PyPy
-#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 5) || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11) || defined(PYPY_VERSION_NUM)
+#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 5) || defined(PYPY_VERSION_NUM)
 #ifdef MS_WINDOWS
 struct _Py_stat_struct {
     unsigned long st_dev;

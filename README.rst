@@ -2,14 +2,17 @@
 scandir, a better directory iterator and faster os.walk()
 =========================================================
 
-.. image:: https://img.shields.io/pypi/v/scandir.svg
-   :target: https://pypi.org/project/scandir/
-   :alt: scandir on PyPI (Python Package Index)
+**Note: This repository is archived, because the "scandir" feature
+has been included in the Python standard library since Python 3.5.**
+You can still download scandir from PyPI if you want, but I won't
+be making any more updates, and this repo has been archived. You're
+better off using `os.scandir() <https://docs.python.org/3/library/os.html#os.scandir>`_
+and `os.walk() <https://docs.python.org/3/library/os.html#os.walk>`_ directly from the Python
+standard library.
 
-.. image:: https://github.com/benhoyt/scandir/actions/workflows/tests.yml/badge.svg
-   :target: https://github.com/benhoyt/scandir/actions/workflows/tests.yml
-   :alt: GitHub Actions Tests
+You can read the story of `how I contributed scandir to Python <https://benhoyt.com/writings/scandir/>`_, and I've kept the old README below.
 
+----------
 
 ``scandir()`` is a directory iteration function like ``os.listdir()``,
 except that instead of returning a list of bare filenames, it yields
